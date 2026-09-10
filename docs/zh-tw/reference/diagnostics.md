@@ -1104,8 +1104,9 @@ dialect。巢狀 schema keyword 也會檢查。
 ### `invalid-schema-extension`
 
 **Error。** 已知 extension keyword 值或巢狀 schema 不合法，例如無效 `type`、
-負長度、重複 `required` 名稱、無效 regex。不合格 keyword 不會合併；
-請修正原值。這些有限檢查不能取代 dialect schema 驗證。
+負長度、重複 `required` 名稱、無效 regex。不合格 keyword 不會合併，
+且此 error 會停止文件輸出。請修正原值。這些有限檢查不能取代 dialect schema
+驗證；其他既有 error 的輸出政策不變。
 
 ### `unrepresentable-numeric-constraint`
 

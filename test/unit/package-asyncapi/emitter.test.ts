@@ -18,6 +18,96 @@ function emitContextFor(
 }
 
 describe("Unit: $onEmit", () => {
+  it.each(["yaml", "json"] as const)(
+    "withholds every write for a malformed schema extension in %s output",
+    async (fileType) => {
+      const runner = await AsyncAPITester.createInstance();
+      await runner.compile(`
+        @service namespace Test;
+        @message model Event {
+          @jsonSchemaExtension("type", "invalid")
+          value: string;
+        }
+      `);
+      const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+
+      await $onEmit(
+        emitContextFor(runner.program, {
+          "file-type": fileType,
+          "output-file": `custom.${fileType}`,
+        }),
+      );
+
+      expect(runner.program.diagnostics).toHaveLength(1);
+      expect(runner.program.diagnostics[0]).toMatchObject({
+        code: "tsp-asyncapi/invalid-schema-extension",
+        severity: "error",
+      });
+      expect(writeFile).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["yaml", "json"] as const)(
+    "withholds the whole service set when a later schema extension is malformed (%s)",
+    async (fileType) => {
+      const runner = await AsyncAPITester.createInstance();
+      await runner.compile(`
+        @service namespace A { @message model Event { value: string; } }
+        @service namespace B {
+          @message model Event {
+            @jsonSchemaExtension("type", "invalid") value: string;
+          }
+        }
+      `);
+      const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+
+      await $onEmit(emitContextFor(runner.program, { "file-type": fileType }));
+
+      expect(runner.program.diagnostics.map(({ code }) => code)).toEqual([
+        "tsp-asyncapi/invalid-schema-extension",
+      ]);
+      expect(writeFile).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not lower malformed schema extensions in an unselected service", async () => {
+    const runner = await AsyncAPITester.createInstance();
+    await runner.compile(`
+      @service namespace A { @message model Event { value: string; } }
+      @service namespace B {
+        @message model Event {
+          @jsonSchemaExtension("type", "invalid") value: string;
+        }
+      }
+    `);
+    const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+
+    await $onEmit(emitContextFor(runner.program, { service: "A", "file-type": "json" }));
+
+    expect(runner.program.diagnostics).toHaveLength(0);
+    expect(writeFile).toHaveBeenCalledTimes(1);
+    expect(writeFile.mock.calls[0][0]).toContain("asyncapi.A.json");
+  });
+
+  it("preserves the historical output policy for unrelated schema errors", async () => {
+    const runner = await AsyncAPITester.createInstance();
+    await runner.compile(`
+      @service namespace Test;
+      interface Callback {}
+      @message model Event { value: Callback; }
+    `);
+    const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+
+    await $onEmit(emitContextFor(runner.program, {}));
+
+    expect(runner.program.diagnostics).toHaveLength(1);
+    expect(runner.program.diagnostics[0]).toMatchObject({
+      code: "tsp-asyncapi/unsupported-payload-type",
+      severity: "error",
+    });
+    expect(writeFile).toHaveBeenCalledTimes(1);
+  });
+
   it("writes the document to the file the options name", async () => {
     const runner = await AsyncAPITester.createInstance();
     await runner.compile(`

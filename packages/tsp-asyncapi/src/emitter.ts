@@ -98,6 +98,12 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
   const ambiguousSecurity = program.diagnostics
     .slice(diagnosticStart)
     .some(({ code }) => code === "tsp-asyncapi/ambiguous-security-scheme");
-  if (refused || ambiguousSecurity || program.compilerOptions.noEmit) return;
+  // Lowering omits malformed extensions; emitting that reduced contract would
+  // conceal the failed authored constraint, even in a later selected service.
+  const invalidSchemaExtension = program.diagnostics.some(
+    ({ code }) => code === "tsp-asyncapi/invalid-schema-extension",
+  );
+  if (refused || ambiguousSecurity || invalidSchemaExtension || program.compilerOptions.noEmit)
+    return;
   for (const output of pending) await emitFile(program, output);
 }

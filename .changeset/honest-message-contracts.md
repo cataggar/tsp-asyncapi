@@ -6,7 +6,7 @@
 
 Diagnose unmapped native scalars, unsupported encoded constraints, later-draft
 schema extensions and authored validation overrides. Reject malformed known
-extension values, and rewrite encoded scalar intersections without leaving
+extension values and withhold document output on that error. Rewrite encoded scalar intersections without leaving
 contradictory wire types or meaningless constraints.
 
 Refuse generated Avro/Protobuf transformations that would silently lose supported

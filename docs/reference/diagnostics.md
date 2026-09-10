@@ -1113,8 +1113,10 @@ contract. Equal values and harmless annotation extensions do not report.
 
 **Error.** A known extension keyword has a malformed value or nested schema,
 such as an invalid `type`, negative length, duplicate `required` names or invalid
-regular expression. The invalid keyword is not merged. Correct the authored value;
-these bounded checks are not a substitute for dialect schema validation.
+regular expression. The invalid keyword is not merged, and this error withholds
+document output. Correct the authored value; these bounded checks are not a
+substitute for dialect schema validation. Other historical error-output policies
+are unchanged.
 
 ### `unrepresentable-numeric-constraint`
 
