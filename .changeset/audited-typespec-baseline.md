@@ -13,6 +13,8 @@ This advances the compiler baseline past GHSA-2q42-4q24-7rgv and updates the
 URI dependency past its reported advisories without suppressing audit findings.
 Preserve server variables named `__proto__`, which the updated compiler now
 passes through to decorators, instead of silently losing them during normalization.
+Keep prototype-named members as own data properties during shared argument
+conversion, preventing nested data from being interpreted as binding settings.
 AsyncAPI remains exactly 3.1.0. Versioning integration uses the matching
 `@typespec/versioning` 0.86.0 release; this change does not itself add versioned
 emission or claim versioned Service Bus profile conformance.

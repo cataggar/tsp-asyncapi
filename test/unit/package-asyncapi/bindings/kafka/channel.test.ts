@@ -65,6 +65,26 @@ describe("Unit: the @kafkaChannel decorator", () => {
     );
   });
 
+  it("does not interpret __proto__ data as a cleanup policy", async () => {
+    const doc = await emitDocument(`
+      ${SERVICE}
+
+      @kafkaChannel(#{
+        topicConfiguration: #{ \`__proto__\`: #{ \`cleanup.policy\`: "compact" } },
+      })
+      @channel("orders.created")
+      interface OrderChannel {
+        @send
+        op publish(event: OrderCreated): void;
+      }
+    `);
+
+    expect(bindingsOf(channelsOf(doc)["orders.created"].bindings).kafka).toEqual({
+      topicConfiguration: { ["__proto__"]: { "cleanup.policy": "compact" } },
+      bindingVersion: "0.5.0",
+    });
+  });
+
   it("reaches a namespace channel as well as an interface channel", async () => {
     const doc = await emitDocument(`
       ${SERVICE}
