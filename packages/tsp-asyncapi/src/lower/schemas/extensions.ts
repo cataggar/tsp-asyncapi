@@ -2,6 +2,7 @@ import { type Model, type ModelProperty, type Program } from "@typespec/compiler
 import { getJsonSchemaExtensions, toPlainValue } from "tsp-asyncapi-core";
 import type { SchemaObject } from "../../types/index.js";
 import { SchemaDiagnostics } from "./diagnostics.js";
+import { identityOf } from "../json-identity.js";
 
 const LATER_KEYWORDS = new Set([
   "$defs",
@@ -144,7 +145,7 @@ const KEYWORD_VALIDATORS: Record<string, KeywordValidator> = {
   enum: (value) =>
     Array.isArray(value) &&
     value.length > 0 &&
-    new Set(value.map((item) => JSON.stringify(item))).size === value.length,
+    new Set(value.map(identityOf)).size === value.length,
   pattern: (value) => typeof value === "string" && patternValid(value),
   patternProperties: (value) =>
     object(value) &&
@@ -165,7 +166,7 @@ function keywordValid(key: string, value: unknown): boolean {
 
 function laterKeywords(key: string, value: unknown, path = key): string[] {
   if (LATER_KEYWORDS.has(key)) return [path];
-  if (SCHEMA_MAPS.has(key) && object(value)) {
+  if ((SCHEMA_MAPS.has(key) || key === "dependencies") && object(value)) {
     return Object.entries(value).flatMap(([name, child]) =>
       laterInSchema(child, `${path}/${name}`),
     );
@@ -219,11 +220,13 @@ export function buildJsonSchemaExtensionFields(
       );
     }
     const previous = Object.hasOwn(fields, key) ? fields[key] : generatedFields[key];
+    const displacesSiblings =
+      key === "$ref" &&
+      Object.keys(generatedFields).some((name) => name !== "$ref" && VALIDATION.has(name));
     if (
       VALIDATION.has(key) &&
       !ANNOTATIONS.has(key) &&
-      previous !== undefined &&
-      JSON.stringify(previous) !== JSON.stringify(plain)
+      (displacesSiblings || (previous !== undefined && identityOf(previous) !== identityOf(plain)))
     ) {
       diagnostics.reportOnce(
         { code: "schema-extension-overrides-contract", target, format: { keyword: key } },

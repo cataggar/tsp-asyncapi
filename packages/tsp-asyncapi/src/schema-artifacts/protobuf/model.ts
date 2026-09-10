@@ -659,12 +659,13 @@ function typeNameOf(walk: Walk, type: Type, property: ModelProperty): string | u
  */
 function scalarNameOf(walk: Walk, scalar: Scalar): string | undefined {
   let current: Scalar | undefined = scalar;
+  let name: string | undefined;
   while (current !== undefined) {
     if (!checkMetadata(walk, current)) return undefined;
-    const name = PROTO_SCALARS.get(qualifiedNameOf(current));
-    if (name !== undefined) return name;
+    name ??= PROTO_SCALARS.get(qualifiedNameOf(current));
     current = current.baseScalar;
   }
+  if (name !== undefined) return name;
   reportDiagnostic(walk.program, {
     code: "protobuf-artifact-unavailable",
     messageId: "unknown-scalar",

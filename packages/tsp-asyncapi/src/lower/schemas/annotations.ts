@@ -502,7 +502,7 @@ export function withDocs(
     target.kind === "Scalar"
       ? filterEncodedConstraints(
           buildValidationKeywords(program, target, diagnostics),
-          schema.type,
+          schema,
           target,
           diagnostics,
         )
@@ -618,7 +618,7 @@ export function withPropertyDocs(
     prop.kind === "ModelProperty" && !("$ref" in encoded)
       ? filterEncodedConstraints(
           buildValidationKeywords(program, prop, diagnostics),
-          encoded.type,
+          encoded,
           prop,
           diagnostics,
         )

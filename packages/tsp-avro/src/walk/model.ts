@@ -62,6 +62,7 @@ import {
 import { avroFullName, avroNamespaceOf } from "./full-names.js";
 import { applyLogicalType, namedTypeOf } from "./logical-types.js";
 import { unsupportedAvroMetadata } from "./metadata.js";
+import { AvroDefaultValidator } from "./defaults.js";
 import { avroScalarFor, scalarTableFor, type AvroScalarTable } from "./scalars.js";
 
 /**
@@ -94,6 +95,7 @@ interface WalkContext {
   readonly defined: Map<string, AvroDeclaration>;
   readonly refusedScalars: Set<Scalar>;
   readonly checkedMetadata: Map<Type, boolean>;
+  readonly defaults: { schema: AvroSchema; value: AvroDefault; property: ModelProperty }[];
   readonly diagnostics: Diagnostic[];
 }
 
@@ -158,6 +160,7 @@ export function buildAvroRecordWithDiagnostics(
     defined: new Map(),
     refusedScalars: new Set(),
     checkedMetadata: new Map(),
+    defaults: [],
     diagnostics,
   };
 
@@ -175,7 +178,12 @@ export function buildAvroRecordWithDiagnostics(
     // true later.
     return [undefined, refusalWithReason(model, diagnostics)];
   }
-  return [schema, diagnostics];
+  const validator = new AvroDefaultValidator(schema);
+  for (const { schema: fieldSchema, value, property } of context.defaults) {
+    const reason = validator.validate(fieldSchema, value, property.name);
+    if (reason !== undefined) refuseDefault(context, property, reason);
+  }
+  return [diagnostics.length === 0 ? schema : undefined, diagnostics];
 }
 
 /**
@@ -883,9 +891,11 @@ function fieldFor(context: WalkContext, property: ModelProperty): AvroField | un
     return undefined;
   }
 
+  const fieldSchema = schemaOf(ordered);
+  context.defaults.push({ schema: fieldSchema, value: value.value, property });
   return {
     name: property.name,
-    type: schemaOf(ordered),
+    type: fieldSchema,
     doc,
     default: value.value,
     aliases,

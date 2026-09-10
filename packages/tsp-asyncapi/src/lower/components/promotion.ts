@@ -20,6 +20,8 @@
  * written, so nothing here needs to mutate an object a caller already holds.
  */
 
+import { identityOf } from "../json-identity.js";
+
 /** How one kind of fragment earns a place in `components`. */
 export interface PromotionPolicy<T> {
   /**
@@ -47,26 +49,6 @@ export interface PromotionPolicy<T> {
    * never invented from a hash of the content.
    */
   key(value: T, site: string): string;
-}
-
-/**
- * The canonical form of a fragment, used to decide that two are the same one.
- *
- * Keys are sorted, so two fragments built in different orders still match.
- * The fragment is already lowered when this runs, so what is compared is what
- * would be written.
- *
- * @param value - The value to inspect
- */
-function identityOf(value: unknown): string {
-  return JSON.stringify(value, (_key, item: unknown) => {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) return item;
-    const entries = Object.entries(item as Record<string, unknown>);
-    // `localeCompare`, not `<`: only stability matters here, and this
-    // repo's lint rules require locale-aware string comparison anyway.
-    entries.sort(([a], [b]) => a.localeCompare(b));
-    return Object.fromEntries(entries);
-  });
 }
 
 /** What the survey learned about one fragment. */

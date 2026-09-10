@@ -1,8 +1,9 @@
-import { Ajv, type AnySchema, type ErrorObject, type ValidateFunction } from "ajv";
+import { Ajv, type ErrorObject, type ValidateFunction } from "ajv";
 import addFormatsModule from "ajv-formats";
 import type { AsyncAPIDocument } from "#emitter/types/index.js";
 import { resolveRef } from "./json-pointer.js";
 import { avroType, protobufType } from "./binary-evolution.js";
+import { compilationSchema } from "./draft07-schema.js";
 
 export interface ConsumerProfile {
   readonly formats?: "assert" | "annotation";
@@ -41,18 +42,15 @@ function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function schema(value: unknown): AnySchema {
-  if (typeof value === "boolean" || record(value)) return value;
-  throw new Error("Expected an object or boolean JSON schema.");
-}
-
 /** Follow only outer reference objects; dialect-internal references stay with the codec. */
 export function emittedSchema(doc: AsyncAPIDocument, value: unknown): unknown {
   const seen = new Set<string>();
-  while (record(value) && typeof value.$ref === "string" && Object.keys(value).length === 1) {
+  while (
+    record(value) &&
+    typeof value.$ref === "string" &&
+    value.$ref.startsWith("#/components/")
+  ) {
     const ref = value.$ref;
-    if (!ref.startsWith("#/"))
-      throw new Error(`External schema reference is not supported: ${ref}`);
     if (seen.has(ref)) throw new Error(`Circular outer reference: ${ref}`);
     seen.add(ref);
     value = resolveRef(doc, ref);
@@ -79,23 +77,6 @@ function jsonErrors(errors: ErrorObject[] | null | undefined): string[] {
   );
 }
 
-function registerAnnotations(ajv: Ajv, value: unknown): void {
-  if (!record(value)) return;
-  for (const [key, child] of Object.entries(value)) {
-    registerAnnotation(ajv, key);
-    if (["properties", "patternProperties", "definitions"].includes(key) && record(child)) {
-      for (const entry of Object.values(child)) registerAnnotations(ajv, entry);
-    } else if (["allOf", "anyOf", "oneOf", "items"].includes(key) && Array.isArray(child)) {
-      for (const entry of child) registerAnnotations(ajv, entry);
-    } else if (["items", "additionalProperties", "not", "if", "then", "else"].includes(key)) {
-      registerAnnotations(ajv, child);
-    }
-  }
-}
-
-function registerAnnotation(ajv: Ajv, key: string): void {
-  if (key.startsWith("x-") && !ajv.getKeyword(key)) ajv.addKeyword({ keyword: key });
-}
 function jsonValidator(
   doc: AsyncAPIDocument,
   value: unknown,
@@ -112,11 +93,11 @@ function jsonValidator(
       coerceTypes: false,
       useDefaults: false,
       removeAdditional: false,
+      // Ajv otherwise applies validation siblings, contrary to draft-07 $ref.
+      ignoreKeywordsWithRef: true,
       validateFormats: profile.formats !== "annotation",
     }),
   );
-  ajv.addKeyword({ keyword: "discriminator", schemaType: "string" });
-  ajv.addKeyword({ keyword: "externalDocs", schemaType: "object" });
   for (const [name, minimum, maximum] of [
     ["int8", -128, 127],
     ["int16", -32768, 32767],
@@ -143,16 +124,16 @@ function jsonValidator(
   for (const name of profile.annotationFormats ?? []) ajv.addFormat(name, true);
 
   // One registry per document, retaining graph edges rather than recursively inlining.
+  const schema = compilationSchema(value);
   if (!authored) {
     for (const [name, component] of Object.entries(doc.components?.schemas ?? {})) {
       if ("schemaFormat" in component) continue;
       const escaped = name.replaceAll("~", "~0").replaceAll("/", "~1");
-      registerAnnotations(ajv, component);
-      ajv.addSchema(schema(component), `#/components/schemas/${escaped}`);
+      const registered = component === value ? schema : compilationSchema(component);
+      ajv.addSchema(registered, `#/components/schemas/${escaped}`);
     }
   }
-  registerAnnotations(ajv, value);
-  const validate: ValidateFunction = ajv.compile(schema(value));
+  const validate: ValidateFunction = ajv.compile(schema);
   return {
     lane: "draft-07",
     limitations: [
@@ -231,7 +212,7 @@ export function createMessageValidator(
     headers,
     validate(value: { payload: unknown; headers?: unknown }): Acceptance {
       const body = payload.validate(value.payload);
-      const head = headers?.validate(value.headers ?? {});
+      const head = headers?.validate(value.headers === undefined ? {} : value.headers);
       return {
         accepted: body.accepted && (head?.accepted ?? true),
         errors: [

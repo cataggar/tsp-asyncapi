@@ -6,6 +6,116 @@ import { createMessageValidator } from "../utils/payload-validation.js";
 const channel = '@channel("events") interface Events { @send op send(event: Event): void; }';
 
 describe("Native fidelity: accepted-source reproductions", () => {
+  it("diagnoses property constraints made ineffective on an encoded nullable union", async () => {
+    const { doc, diagnostics } = await emitDocumentWithDiagnostics(`
+      @message model Event { @minValue(1) @encode(string) value: int32 | null; } ${channel}
+    `);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "tsp-asyncapi/unsupported-encoded-constraint",
+      severity: "warning",
+    });
+    expect(targetText(diagnostics[0])).toContain("value:");
+    expect(diagnostics[0].message).toContain("minimum");
+    if (!doc) throw new Error("Expected warned output");
+    expect(JSON.stringify(doc.components?.schemas)).not.toContain('"minimum"');
+    const validator = createMessageValidator(doc, "Event");
+    expect(validator.validate({ payload: { value: "0" } }).accepted).toBe(true);
+    expect(validator.validate({ payload: { value: null } }).accepted).toBe(true);
+    expect(validator.validate({ payload: { value: 1 } }).accepted).toBe(false);
+  });
+
+  it("retains union constraints that still apply to an unencoded numeric branch", async () => {
+    const doc = await emitDocument(`
+      @message model Event {
+        @minValue(1) @encode("rfc3339") value: utcDateTime | int32 | null;
+      } ${channel}
+    `);
+    const validator = createMessageValidator(doc, "Event");
+    for (const value of [1, null, "2026-09-10T00:00:00Z"]) {
+      expect(validator.validate({ payload: { value } }).accepted).toBe(true);
+    }
+    expect(validator.validate({ payload: { value: 0 } }).accepted).toBe(false);
+  });
+
+  it("warns when a new authored reference displaces the generated validation siblings", async () => {
+    const { doc, diagnostics } = await emitDocumentWithDiagnostics(`
+      model Any {}
+      @jsonSchemaExtension("$ref", "#/components/schemas/Any")
+      @message model Event { id: string; extra?: Any; } ${channel}
+    `);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "tsp-asyncapi/schema-extension-overrides-contract",
+      severity: "warning",
+    });
+    expect(diagnostics[0].message).toContain("$ref");
+    expect(targetText(diagnostics[0])).toContain("model Event");
+    if (!doc) throw new Error("Expected warned output");
+    expect(createMessageValidator(doc, "Event").validate({ payload: {} }).accepted).toBe(true);
+  });
+
+  it.each([
+    "#[#{ a: 1, b: 2 }, #{ b: 2, a: 1 }]",
+    "#[#{ nested: #{ a: 1, b: #[2, 3] } }, #{ nested: #{ b: #[2, 3], a: 1 } }]",
+    "#[0, -0]",
+  ])("refuses structurally duplicate JSON enum values: %s", async (values) => {
+    const { doc, diagnostics } = await emitDocumentWithDiagnostics(`
+      @message model Event { @jsonSchemaExtension("enum", ${values}) value: unknown; } ${channel}
+    `);
+    expect(doc).toBeNull();
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "tsp-asyncapi/invalid-schema-extension",
+      severity: "error",
+    });
+    expect(targetText(diagnostics[0])).toContain("value:");
+    expect(diagnostics[0].message).toContain("enum");
+  });
+
+  it("keeps array order and primitive types significant in enum values", async () => {
+    const doc = await emitDocument(`
+      @message model Event {
+        @jsonSchemaExtension("enum", #[#[1, 2], #[2, 1], 1, "1"])
+        value: unknown;
+      } ${channel}
+    `);
+    const validator = createMessageValidator(doc, "Event");
+    for (const value of [[1, 2], [2, 1], 1, "1"]) {
+      expect(validator.validate({ payload: { value } }).accepted).toBe(true);
+    }
+    expect(validator.validate({ payload: { value: [1, 1] } }).accepted).toBe(false);
+  });
+
+  it("inspects schema dependencies without interpreting property-dependency arrays as schemas", async () => {
+    const { doc, diagnostics } = await emitDocumentWithDiagnostics(`
+      @jsonSchemaExtension("dependencies", #{
+        id: #{ dependentRequired: #{ id: #["name"] } },
+        name: #["id"]
+      })
+      @message model Event { id?: string; name?: string; } ${channel}
+    `);
+    expect(doc).not.toBeNull();
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "tsp-asyncapi/unsupported-schema-keyword",
+      severity: "warning",
+    });
+    expect(diagnostics[0].message).toContain("dependencies/id/dependentRequired");
+    expect(targetText(diagnostics[0])).toContain("model Event");
+    const control = await emitDocument(`
+      @jsonSchemaExtension("dependencies", #{ id: #["name"] })
+      @message model Event { id?: string; name?: string; } ${channel}
+    `);
+    expect(
+      createMessageValidator(control, "Event").validate({ payload: { id: "a" } }).accepted,
+    ).toBe(false);
+    expect(
+      createMessageValidator(control, "Event").validate({ payload: { id: "a", name: "b" } })
+        .accepted,
+    ).toBe(true);
+  });
+
   it("F10 opaque scalar warns once, retaining an explicitly unconstrained shape", async () => {
     const source = `scalar Opaque; scalar Derived extends Opaque;
       @message model Event { a: Derived; b: Derived; } ${channel}`;

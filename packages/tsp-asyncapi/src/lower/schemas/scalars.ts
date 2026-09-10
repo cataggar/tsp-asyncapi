@@ -302,7 +302,7 @@ export function buildScalarShapeWithDocs(
       ...encoded,
       ...filterEncodedConstraints(
         buildValidationKeywords(program, scalar, diagnostics),
-        encoded.type,
+        encoded,
         scalar,
         diagnostics,
       ),

@@ -1094,26 +1094,30 @@ Repeated uses report once per root declaration per document.
 
 **Warning.** A source constraint does not apply to the encoded wire type, for
 example numeric `minimum` on a string. The keyword is omitted, including in scalar
-`allOf` intersections. Validate the source range in the application or describe
+`allOf` intersections and nullable unions. Constraints that still govern an
+unencoded branch are retained. Validate the source range in the application or describe
 the wire constraint explicitly. Distinct keyword losses each report once.
 
 ### `unsupported-schema-keyword`
 
 **Warning.** A known later-draft extension keyword, or a non-draft-07 `$schema`,
 is retained but not endorsed as native draft-07 validation. Use a draft-07
-equivalent or an explicitly authored dialect. Nested schema keywords are inspected.
+equivalent or an explicitly authored dialect. Nested schema keywords, including
+schema-valued `dependencies`, are inspected; property-dependency arrays remain data.
 
 ### `schema-extension-overrides-contract`
 
 **Warning.** An extension replaces a generated validation keyword with a different
-value. The authored override is preserved; remove it to retain the generated
-contract. Equal values and harmless annotation extensions do not report.
+value, or adds a `$ref` that displaces generated validation siblings under
+draft-07 semantics. The authored override is preserved; remove it to retain the
+generated contract. Equal values and harmless annotation extensions do not report.
 
 ### `invalid-schema-extension`
 
 **Error.** A known extension keyword has a malformed value or nested schema,
-such as an invalid `type`, negative length, duplicate `required` names or invalid
-regular expression. The invalid keyword is not merged, and this error withholds
+such as an invalid `type`, negative length, duplicate `required` names, structurally
+duplicate `enum` values (regardless of object-key order), or an invalid regular
+expression. The invalid keyword is not merged, and this error withholds
 document output. Correct the authored value; these bounded checks are not a
 substitute for dialect schema validation. Other historical error-output policies
 are unchanged.

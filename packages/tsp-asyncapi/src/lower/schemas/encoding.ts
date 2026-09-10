@@ -123,7 +123,7 @@ function encodeShape(
   diagnostics: SchemaDiagnostics,
 ): SchemaObject {
   const targetShape = naturalScalarShape(encodeData.type);
-  const encoded = filterEncodedConstraints(schema, targetShape.type, target, diagnostics);
+  const encoded = filterEncodedConstraints(schema, targetShape, target, diagnostics);
   if (encoded.allOf !== undefined) {
     encoded.allOf = encoded.allOf.map((branch) =>
       "$ref" in branch ? branch : encodeShape(branch, encodeData, declared, target, diagnostics),
@@ -162,26 +162,45 @@ const CONSTRAINT_DOMAINS = new Map<string, readonly string[]>(
 /** Constraints describe source values; copying them onto another wire type is not preservation. */
 export function filterEncodedConstraints(
   schema: SchemaObject,
-  wireType: SchemaObject["type"],
+  wireShape: SchemaObject,
   target: Scalar | ModelProperty,
   diagnostics: SchemaDiagnostics,
 ): SchemaObject {
-  if (typeof wireType !== "string") return { ...schema };
+  const wireTypes = wireDomains(wireShape);
+  if (wireTypes === undefined) return { ...schema };
   return Object.fromEntries(
     Object.entries(schema).filter(([keyword]) => {
       const domain = CONSTRAINT_DOMAINS.get(keyword);
-      if (domain === undefined || domain.includes(wireType)) return true;
+      if (domain === undefined || [...wireTypes].some((type) => domain.includes(type))) return true;
       diagnostics.reportOnce(
         {
           code: "unsupported-encoded-constraint",
           target,
-          format: { keyword, wireType },
+          format: { keyword, wireType: [...wireTypes].join(" | ") },
         },
         keyword,
       );
       return false;
     }),
   );
+}
+
+/** Unknown references remain conservative; a constraint may still govern their values. */
+function wireDomains(schema: SchemaObject): ReadonlySet<string> | undefined {
+  if (schema.type !== undefined) {
+    return new Set(Array.isArray(schema.type) ? schema.type : [schema.type]);
+  }
+  const alternatives = schema.anyOf ?? schema.oneOf;
+  if (alternatives !== undefined) {
+    const domains = alternatives.map(wireDomains);
+    if (domains.some((domain) => domain === undefined)) return undefined;
+    return new Set(domains.flatMap((domain) => (domain === undefined ? [] : [...domain])));
+  }
+  for (const branch of schema.allOf ?? []) {
+    const domain = wireDomains(branch);
+    if (domain !== undefined) return domain;
+  }
+  return undefined;
 }
 
 /**

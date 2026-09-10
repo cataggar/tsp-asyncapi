@@ -52,6 +52,10 @@ New native warnings make previously silent limitations visible:
 Malformed known extension keywords report `invalid-schema-extension` errors.
 Encoding rewrites every scalar `allOf` level; constraints for the old wire type
 are omitted with a warning, not left as meaningless bounds or contradictory types.
+Nullable unions are inspected by branch domain; constraints that still apply to
+an unencoded branch remain in place. An authored `$ref` also warns when it
+displaces generated validation siblings. Enum equality ignores object-key order,
+and later-draft keywords are detected inside schema-valued `dependencies`.
 No numeric-to-string range regex or universal conversion solver is invented.
 
 ## Consumer profiles and evolution
@@ -63,6 +67,15 @@ defaults nor failed validation mutate input. A **closed** profile separately
 lists consumer-known fields at explicit object paths. It does not attach
 `additionalProperties: false` to an `allOf` and mistake inherited fields for
 unknown ones. A **format-annotation** profile intentionally ignores formats.
+
+The native/draft-07 oracle ignores validation siblings of `$ref`; meaningful
+additional constraints belong in an `allOf` wrapper. It explicitly rejects
+OpenAPI `nullable` at schema positions rather than extending the dialect.
+Opaque annotations are removed only from the nonmutating compilation view, so
+their `$id` values cannot register schemas or resolve live references. Real
+schema identifiers, recursive references and literal `const`/`enum` data remain.
+Absent optional headers default to an empty object for validation; explicit
+`null` does not and fails an object header schema.
 
 Unknown validation keywords and formats fail helper compilation unless explicitly
 declared annotation-only. `http-date` is one such declared lexical limitation.
@@ -90,6 +103,10 @@ Avro uses stable full names and `reader.createResolver(writer)`, with
 reader defaults and enum fallback are asserted as exact values, not called
 value-preserving. Unsupported reader/writer pairs can fail during resolver
 construction or when a particular union/enum branch is read.
+Generated defaults are checked recursively against the completed Avro schema
+graph, including named records, arrays, maps and each nested union's first
+branch. An outer default never reorders a shared nested union. Invalid or
+infinitely expanding defaults report `tsp-avro/invalid-default` and refuse output.
 
 Protobuf uses separate roots with `keepCase: true`; the root message is selected
 explicitly. Values, own-field presence, unknown numeric enums and tag loss are
@@ -97,6 +114,9 @@ asserted independently. Missing singular fields may decode successfully despite
 violating source-required semantics. An old reader can discard unknown tags on
 decode/re-encode. A separate closed-enum application policy rejects unknown
 numbers. Binary name/tag compatibility does not establish ProtoJSON compatibility.
+Explicit source metadata is checked throughout a Protobuf scalar's ancestry,
+even beyond the nearest supported wire mapping; implicit wire mappings remain
+supported.
 
 Avro logical-type names, units, decimal precision/scale and fixed sizes are
 asserted on the emitted schema. avsc without custom logical adapters does not
@@ -106,7 +126,7 @@ the advertised Avro 1.9.0 dialect.
 ## Scope and running the evidence
 
 The existing Vitest runner auto-discovers `contract-fidelity`,
-`contract-native-diagnostics`, `contract-evolution`, `contract-binary-fidelity`
+`contract-native-diagnostics`, `contract-validator-draft07`, `contract-evolution`, `contract-binary-fidelity`
 and `contract-binary-evolution`. The data rows live in
 `test/fixtures/contract-fidelity`; binary pairs carry their expected values in
 their suite. Expected negatives are ordinary assertions, not skipped tests.

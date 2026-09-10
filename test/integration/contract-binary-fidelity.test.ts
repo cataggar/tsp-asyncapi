@@ -47,6 +47,158 @@ const metadataCases = [
   ],
 ] as const;
 
+describe("Binary review regression controls", () => {
+  const protobuf = createArtifactEmitter("@typespec/protobuf", "protobuf");
+  const avro = createArtifactEmitter("tsp-avro", "avro");
+
+  it.each(["int32", "Protobuf.sint32", "Counter"])(
+    "refuses explicit metadata anywhere behind mapped scalar %s",
+    async (type) => {
+      const code = source(
+        "protobuf",
+        `@Protobuf.field(1) value: ${type};`,
+        `
+        @@encode(TypeSpec.int32, string);
+        scalar Counter extends Protobuf.sint32;
+      `,
+      );
+      await createLibraryTester("@typespec/protobuf").compile(code);
+      const result = await protobuf.emit(code);
+      expect(result.doc).toBeNull();
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0]).toMatchObject({
+        code: "tsp-asyncapi/protobuf-artifact-unavailable",
+        severity: "error",
+      });
+      expect(result.diagnostics[0].message).toContain("@encode");
+      expect(targetText(result.diagnostics[0])).toContain("scalar int32");
+    },
+  );
+
+  it("keeps the nearest binary scalar mapping when its ancestry has no explicit loss", async () => {
+    const doc = await protobuf.emitClean(
+      source(
+        "protobuf",
+        "@Protobuf.field(1) value: Counter;",
+        "scalar Counter extends Protobuf.sint32;",
+      ),
+    );
+    const text = textPayloadOf(doc, "Event").schema;
+    expect(text).toContain("sint32 value");
+    expect(readProtobuf(text, text, "contract.Event", { value: -3 })).toMatchObject({
+      status: "decoded",
+      value: { value: -3 },
+    });
+  });
+
+  it.each([
+    [
+      "record",
+      "model Inner { value: string | null; }",
+      "inner: Inner = #{ value: null };",
+      'inner: Inner = #{ value: "ok" };',
+      "inner",
+      { value: "ok" },
+    ],
+    [
+      "referenced record",
+      "model Inner { value: string | null; }",
+      "first: Inner; inner: Inner = #{ value: null };",
+      'first: Inner; inner: Inner = #{ value: "ok" };',
+      "inner",
+      { value: "ok" },
+    ],
+    [
+      "array",
+      "",
+      "values: (string | int32)[] = #[3];",
+      'values: (string | int32)[] = #["ok"];',
+      "values",
+      ["ok"],
+    ],
+    [
+      "map",
+      "",
+      "values: Record<string | int32> = #{ one: 3 };",
+      'values: Record<string | int32> = #{ one: "ok" };',
+      "values",
+      { one: "ok" },
+    ],
+    [
+      "recursive record",
+      "model Inner { value: string | null; child?: Inner | null; }",
+      'inner: Inner = #{ value: "ok", child: #{ value: "nested" } };',
+      'inner: Inner = #{ value: "ok", child: null };',
+      "inner",
+      { value: "ok", child: null },
+    ],
+  ] as const)(
+    "refuses non-first nested union defaults in a %s",
+    async (kind, declarations, invalid, valid, field, expectedDefault) => {
+      const code = source("avro", invalid, declarations);
+      await createLibraryTester("tsp-avro").compile(code);
+      const result = await avro.emit(code);
+      expect(result.doc).toBeNull();
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0]).toMatchObject({
+        code: "tsp-asyncapi/avro-artifact-unavailable",
+        severity: "error",
+      });
+      expect(result.diagnostics[0].message).toContain("first union branch");
+      const direct = await emitAvro(`@Avro.avroNamespace("contract") namespace Wire {
+      ${declarations} @Avro.avroRecord model Event { ${invalid} }
+    }`);
+      expect(direct.files).toEqual({});
+      expect(direct.diagnostics).toHaveLength(1);
+      expect(direct.diagnostics[0]).toMatchObject({
+        code: "tsp-avro/invalid-default",
+        severity: "error",
+      });
+      expect(targetText(direct.diagnostics[0])).toContain(`${field}:`);
+      const control = await avro.emitClean(source("avro", valid, declarations));
+      const schema = payloadOf(control, "Event").schema;
+      expect(fieldNamed(schema, field).default).toEqual(expectedDefault);
+      const hasFirst = kind === "referenced record";
+      const input = hasFirst ? { first: { value: "existing" } } : {};
+      const expected = { ...input, [field]: expectedDefault };
+      const type = avroType(schema);
+      expect(type.fromBuffer(type.toBuffer(input))).toEqual(expected);
+      const writer = await avro.emitClean(
+        source("avro", hasFirst ? "first: Inner;" : "", declarations),
+      );
+      const read = readAvro(payloadOf(writer, "Event").schema, schema, input);
+      expect(read.status).toBe("decoded");
+      if (read.status !== "decoded") throw new Error(read.reason);
+      expect(read.value).toEqual(expected);
+    },
+  );
+
+  it("refuses implicitly recursive defaults but permits omitted fields with a finite default", async () => {
+    const declarations = "model Node { child?: Node = #{}; }";
+    const code = source("avro", "node: Node;", declarations);
+    await createLibraryTester("tsp-avro").compile(code);
+    const result = await avro.emit(code);
+    expect(result.doc).toBeNull();
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].message).toContain("infinitely recursive default");
+    const direct = await emitAvro(`@Avro.avroNamespace("contract") namespace Wire {
+      ${declarations} @Avro.avroRecord model Event { node: Node; }
+    }`);
+    expect(direct.files).toEqual({});
+    expect(direct.diagnostics).toHaveLength(1);
+    expect(direct.diagnostics[0]).toMatchObject({
+      code: "tsp-avro/invalid-default",
+      severity: "error",
+    });
+    expect(targetText(direct.diagnostics[0])).toContain("child?:");
+    const control = await avro.emitClean(
+      source("avro", "node: Node = #{};", "model Node { child?: Node; }"),
+    );
+    const type = avroType(payloadOf(control, "Event").schema);
+    expect(type.fromBuffer(type.toBuffer({}))).toEqual({ node: { child: null } });
+  });
+});
+
 for (const dialect of ["avro", "protobuf"] as const) {
   const library = dialect === "avro" ? "tsp-avro" : "@typespec/protobuf";
   const emitter = createArtifactEmitter(library, dialect);

@@ -190,6 +190,14 @@ The file holds the model `Address` and the enum `FulfilmentStatus` in full. Neit
 
 Avro reads a default against the first branch of a union alone. So the `?` and the `= value` of TypeSpec decide the shape together.
 
+This rule also applies inside record, array and map defaults. The emitter checks
+serialized defaults against the completed named-schema graph and refuses values
+that do not match a nested union's first branch; it does not reorder shared
+nested schemas to fit an outer default. For example, `Inner { value: string | null }`
+cannot have an outer record default `{ value: null }`, but `{ value: "ok" }` is
+valid. Omitted nested fields must have usable field defaults; infinite implicit
+default expansion is refused.
+
 | TypeSpec           | Avro                                                   |
 | ------------------ | ------------------------------------------------------ |
 | `x: string`        | `{"name":"x","type":"string"}`                         |
@@ -285,23 +293,23 @@ Every diagnostic of this package is an error. An error stops every write. So one
 
 A part of a schema is still a valid schema. A registry would accept one, and a reader would then decode data into a shape the author never wrote.
 
-| Code                              | When                                                                                                            |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `tsp-avro/namespace-required`     | A record has no Avro namespace above it.                                                                        |
-| `tsp-avro/invalid-name`           | A name breaks the Avro name rules, or Avro keeps it for a type of its own.                                      |
-| `tsp-avro/unsupported-type`       | A type or recognized compiler metadata has no faithful generated Avro form.                                     |
-| `tsp-avro/aliases-target`         | `@Avro.aliases` is on a scalar that is written as an Avro primitive.                                            |
-| `tsp-avro/duplicate-union-branch` | Two branches of one union are the same Avro type.                                                               |
-| `tsp-avro/invalid-default`        | A default has no JSON form, or it names no one branch of its union.                                             |
-| `tsp-avro/invalid-order`          | `@Avro.order` was given something that is not an Avro field order.                                              |
-| `tsp-avro/invalid-fixed`          | `@Avro.fixed` was given a width that is not positive, or a scalar that extends an Avro type other than `bytes`. |
-| `tsp-avro/invalid-decimal`        | A precision or a scale does not fit, or a `decimal` carries neither.                                            |
-| `tsp-avro/unknown-logical-type`   | A logical type is not supported by the Avro 1.9 dialect.                                                        |
-| `tsp-avro/logical-type-mismatch`  | A logical type is written on a type the specification does not allow.                                           |
-| `tsp-avro/duplicate-logical-type` | One declaration carries two logical types.                                                                      |
-| `tsp-avro/enum-default`           | `@Avro.enumDefault` names a member the enum does not declare.                                                   |
-| `tsp-avro/duplicate-record`       | Two records write to one path.                                                                                  |
-| `tsp-avro/enum-member-value`      | An enum member carries a value of its own.                                                                      |
+| Code                              | When                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `tsp-avro/namespace-required`     | A record has no Avro namespace above it.                                                                                       |
+| `tsp-avro/invalid-name`           | A name breaks the Avro name rules, or Avro keeps it for a type of its own.                                                     |
+| `tsp-avro/unsupported-type`       | A type or recognized compiler metadata has no faithful generated Avro form.                                                    |
+| `tsp-avro/aliases-target`         | `@Avro.aliases` is on a scalar that is written as an Avro primitive.                                                           |
+| `tsp-avro/duplicate-union-branch` | Two branches of one union are the same Avro type.                                                                              |
+| `tsp-avro/invalid-default`        | A default has no JSON form, names no unique union branch, or fails the emitted schema, including nested first-branch defaults. |
+| `tsp-avro/invalid-order`          | `@Avro.order` was given something that is not an Avro field order.                                                             |
+| `tsp-avro/invalid-fixed`          | `@Avro.fixed` was given a width that is not positive, or a scalar that extends an Avro type other than `bytes`.                |
+| `tsp-avro/invalid-decimal`        | A precision or a scale does not fit, or a `decimal` carries neither.                                                           |
+| `tsp-avro/unknown-logical-type`   | A logical type is not supported by the Avro 1.9 dialect.                                                                       |
+| `tsp-avro/logical-type-mismatch`  | A logical type is written on a type the specification does not allow.                                                          |
+| `tsp-avro/duplicate-logical-type` | One declaration carries two logical types.                                                                                     |
+| `tsp-avro/enum-default`           | `@Avro.enumDefault` names a member the enum does not declare.                                                                  |
+| `tsp-avro/duplicate-record`       | Two records write to one path.                                                                                                 |
+| `tsp-avro/enum-member-value`      | An enum member carries a value of its own.                                                                                     |
 
 ## Refusals
 

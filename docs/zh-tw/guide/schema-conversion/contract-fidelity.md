@@ -47,6 +47,9 @@ spread 則把欄位變成 message 自有欄位。矩陣沒有改變這些規則�
 已知 extension 關鍵字值不合法時回報 `invalid-schema-extension` error。
 Encoding 會改寫 scalar 的各層 `allOf`；不適用新 wire type 的 constraint 省略並警告，
 不留下無意義的範圍或互相矛盾的型別，也不猜測數字轉字串範圍的 regex。
+Nullable union 會依分支型別檢查；仍適用未編碼分支的限制會保留。
+作者新增的 `$ref` 若讓產生的同層驗證關鍵字失效，也會警告。
+Enum 相等性不受物件鍵順序影響；schema 形式的 `dependencies` 也會檢查較新 draft 關鍵字。
 
 ## Consumer profile 與演進
 
@@ -55,6 +58,12 @@ Encoding 會改寫 scalar 的各層 `allOf`；不適用新 wire type 的 constra
 驗證成功或失敗都不修改輸入。**Closed** profile 在明確物件路徑指定已知欄位，
 不直接在 `allOf` 加上 `additionalProperties: false` 而誤判繼承欄位。
 **Format-annotation** profile 則刻意不執行 format 限制。
+
+Native／draft-07 oracle 忽略 `$ref` 同層的驗證關鍵字；要附加有效限制，請使用
+`allOf` wrapper。Schema 位置的 OpenAPI `nullable` 會明確拒絕，不擴充 dialect。
+Opaque annotation 只從不修改原始資料的編譯表示中移除，避免其中的 `$id` 註冊 schema
+或解析真正的參照。真正的 schema 識別碼、遞迴參照與 `const`／`enum` 字面資料仍保留。
+未提供的選填 headers 以空物件驗證；明確的 `null` 不會轉成空物件，會違反 object header schema。
 
 未知驗證 keyword 或 format 會讓 helper 編譯失敗，除非明確標示 annotation-only。
 `http-date` 的字面格式就是一項限制。數字／布林轉字串只證明 wire 表示為字串，
@@ -75,11 +84,16 @@ JSON 必填欄位的 default 不會自動補救舊訊息。
 Avro 使用穩定 full name、`reader.createResolver(writer)`、`wrapUnions: false`。
 未知 writer 欄位會略過；alias 有方向性；reader default 與 enum fallback 比對精確值，
 不稱作原值保留。拒絕可能出現在建立 resolver，或讀取某個 union/enum 分支時。
+產生的預設值會依完成的 Avro schema 圖遞迴檢查，包含具名 record、陣列、map，
+以及每個巢狀 union 的第一個分支。外層預設值不會改排共用巢狀 union 的順序。
+不合法或無限展開的預設值會回報 `tsp-avro/invalid-default` 並拒絕輸出。
 
 Protobuf 分別建立 `keepCase: true` 的 root，明確選擇訊息。欄位值、自有欄位 presence、
 未知數字 enum 與 tag 遺失各自 assertion。缺少 singular 欄位可能解碼成功卻違反來源
 必填語意。舊 reader 解碼再編碼會遺失未知 tag；closed-enum 應用政策另外拒絕未知數字。
 二進位名稱／tag 相容不等於 ProtoJSON 相容。
+Protobuf scalar 的明確來源中繼資料會沿完整繼承鏈檢查，不在找到最近的 wire mapping
+時停止；隱含的 wire mapping 仍受支援。
 
 Avro logical type 名稱、單位、decimal precision/scale 與 fixed size 直接比對 emitted
 schema；沒有 custom logical adapter 的 avsc 不證明它們的語意。`local-timestamp-*`
@@ -88,7 +102,7 @@ schema；沒有 custom logical adapter 的 avsc 不證明它們的語意。`loca
 ## 範圍與執行
 
 既有 Vitest runner 自動探索 `contract-fidelity`、`contract-native-diagnostics`、
-`contract-evolution`、`contract-binary-fidelity`、`contract-binary-evolution`。
+`contract-validator-draft07`、`contract-evolution`、`contract-binary-fidelity`、`contract-binary-evolution`。
 資料列在 `test/fixtures/contract-fidelity`，二進位 pair 的預期值在各 suite。
 預期拒絕是一般 assertion，不是 skip。產生的有限整數見證使用 seed `3107`。
 

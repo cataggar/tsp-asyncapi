@@ -1087,24 +1087,28 @@ server 與 security scheme 就是這種 target。兩者都以具名參數宣告�
 ### `unsupported-encoded-constraint`
 
 **Warning。** 來源 constraint 不適用 encoded wire type，例如字串上的數字 `minimum`。
-該 keyword 會省略，包含 scalar `allOf` 交集中的限制。請在應用程式驗證來源範圍，
+該 keyword 會省略，包含 scalar `allOf` 交集與 nullable union 中的限制；
+仍適用未編碼分支的限制會保留。請在應用程式驗證來源範圍，
 或明確描述 wire constraint。不同 keyword 的損失分別回報。
 
 ### `unsupported-schema-keyword`
 
 **Warning。** 已知較新 draft 的 extension keyword，或非 draft-07 的 `$schema`，
 會保留，但不宣稱 native draft-07 驗證支援。請改用 draft-07 等效限制或明確手寫
-dialect。巢狀 schema keyword 也會檢查。
+dialect。巢狀 schema keyword（包含 schema 形式的 `dependencies`）也會檢查；
+欄位相依名稱陣列仍視為資料。
 
 ### `schema-extension-overrides-contract`
 
-**Warning。** Extension 用不同值取代產生的驗證 keyword。保留作者的覆寫；
+**Warning。** Extension 用不同值取代產生的驗證 keyword，或新增 `$ref` 讓產生的
+同層驗證關鍵字依 draft-07 語意失效。保留作者的覆寫；
 要維持產生的契約請移除覆寫。相同值與純 annotation 不回報。
 
 ### `invalid-schema-extension`
 
 **Error。** 已知 extension keyword 值或巢狀 schema 不合法，例如無效 `type`、
-負長度、重複 `required` 名稱、無效 regex。不合格 keyword 不會合併，
+負長度、重複 `required` 名稱、結構相同的 `enum` 值（不受物件鍵順序影響）、
+無效 regex。不合格 keyword 不會合併，
 且此 error 會停止文件輸出。請修正原值。這些有限檢查不能取代 dialect schema
 驗證；其他既有 error 的輸出政策不變。
 
