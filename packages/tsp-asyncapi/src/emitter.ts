@@ -85,7 +85,10 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
       providers,
       output.document.artifactInput,
     );
-    refused ||= collected.refused;
+    if (collected.refused) {
+      refused = true;
+      continue;
+    }
     const doc = await buildDocumentFromContext(output.document, options, collected.artifacts);
     pending.push({
       path: output.path,
@@ -93,7 +96,7 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
         fileType === "json" ? JSON.stringify(doc, null, 2) : yaml.stringify(doc, { lineWidth: 0 }),
     });
   }
-  // Resolve/lower every selected document before the first write, including noEmit.
+  // Prepare every selected document before the first write, including noEmit.
   // Existing diagnostic-and-drop recovery remains intact; shared security ambiguity is a new refusal.
   const ambiguousSecurity = program.diagnostics
     .slice(diagnosticStart)
