@@ -11,13 +11,13 @@ TypeSpec 診斷、文件與 schema 解析、實際 payload **與應用程式 hea
 
 ## 驗證的 dialect
 
-| Lane                               | 產生的契約            | 手寫契約                              | 實例證據                                         |
+| Lane                               | 產生的契約            | 手寫契約                              | 執行個體證據                                     |
 | ---------------------------------- | --------------------- | ------------------------------------- | ------------------------------------------------ |
 | AsyncAPI 3.1／JSON Schema draft-07 | 下表支援的子集        | AsyncAPI 與 draft-07 JSON/YAML 識別碼 | 獨立 Ajv + ajv-formats，保留遞迴參照             |
 | Avro 1.9.0                         | Preview record 轉換   | Avro 物件 schema                      | avsc writer 編碼與獨立 reader resolver           |
 | Protobuf 3                         | Preview 自包含 proto3 | 手寫 proto3 文字                      | protobufjs 分別解析 writer/reader，明確指定 root |
 | Protobuf 2                         | 不產生 proto2         | 聚焦的手寫 proto2                     | required 與 default 行為，不宣稱支援產生 proto2  |
-| OpenAPI 3.0、RAML 1.0、其他識別碼  | 不宣稱轉換            | 識別碼與表示法透傳                    | 不當成 draft-07 驗證；實例 helper 明確拒絕       |
+| OpenAPI 3.0、RAML 1.0、其他識別碼  | 不宣稱轉換            | 識別碼與表示法透傳                    | 不當成 draft-07 驗證；執行個體 helper 明確拒絕   |
 
 接受十四種 `schemaFormat` 識別碼，不等於實作十四種 payload 驗證器。
 外層媒體型別與內部 schema 語法分別驗證。Native、產生的 Avro 與 proto3 都涵蓋
