@@ -97,6 +97,11 @@ export function listProtobufMessageModels(program: Program): Model[] {
   return models;
 }
 
+/** Reads the official marker for one selected live Model. @internal */
+export function isProtobufMessage(program: Program, model: Model): boolean {
+  return program.stateSet(MESSAGE_STATE).has(model);
+}
+
 /** The answer of the name reader when the details have an unknown shape. */
 const UNREADABLE = Symbol("unreadable package details");
 

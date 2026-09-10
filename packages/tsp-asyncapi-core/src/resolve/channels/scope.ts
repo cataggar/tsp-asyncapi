@@ -27,11 +27,15 @@ import { bySourcePosition, sourcePositionOf } from "../../source-order.js";
  * @param target - The interface or namespace that carries the channel
  * @returns The operations declared directly inside it, in source order
  */
-export function channelOperations(program: Program, target: ChannelTarget): Operation[] {
+export function channelOperations(
+  program: Program,
+  target: ChannelTarget,
+  operations?: ReadonlySet<Operation>,
+): Operation[] {
   const compare = bySourcePosition(program);
-  return [...target.operations.values()].sort((a, b) =>
-    compare(sourcePositionOf(a), sourcePositionOf(b)),
-  );
+  return [...target.operations.values()]
+    .filter((operation) => operations === undefined || operations.has(operation))
+    .sort((a, b) => compare(sourcePositionOf(a), sourcePositionOf(b)));
 }
 
 /**

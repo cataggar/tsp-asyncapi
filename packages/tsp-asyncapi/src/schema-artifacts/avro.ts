@@ -26,7 +26,11 @@ import {
   reportDiagnostic,
   type ExternalSchemaArtifact,
 } from "tsp-asyncapi-core";
-import type { CollectedSchemaArtifacts, SchemaArtifactProvider } from "./provider.js";
+import type {
+  CollectedSchemaArtifacts,
+  SchemaArtifactInput,
+  SchemaArtifactProvider,
+} from "./provider.js";
 
 /**
  * The AsyncAPI schema format of an Avro schema.
@@ -51,7 +55,10 @@ const PROVIDER_ID = "avro";
  * @internal
  */
 export function createAvroProvider(load: AvroLoader = loadAvro): SchemaArtifactProvider {
-  return { id: PROVIDER_ID, collect: (program) => collectAvroArtifacts(program, load) };
+  return {
+    id: PROVIDER_ID,
+    collect: (program, input) => collectAvroArtifacts(program, load, input),
+  };
 }
 
 /**
@@ -106,6 +113,7 @@ async function loadAvro(): Promise<AvroLibrary> {
 async function collectAvroArtifacts(
   program: Program,
   load: AvroLoader,
+  input?: SchemaArtifactInput,
 ): Promise<CollectedSchemaArtifacts> {
   let avro: AvroLibrary;
   try {
@@ -121,14 +129,14 @@ async function collectAvroArtifacts(
     return { artifacts: emptySchemaArtifacts, refused: true };
   }
 
-  const asked = listMessages(program);
+  const asked = input?.models ?? [...listMessages(program).keys()];
   const payloadFor = new Map<Model, ExternalSchemaArtifact>();
 
   let refused = false;
-  for (const model of avro.main.listRecords(program)) {
+  for (const model of asked) {
     // A model outside the document is skipped, not reported: a diagnostic
     // for it would name a message that does not exist.
-    if (!asked.has(model)) continue;
+    if (!avro.main.isRecord(program, model)) continue;
 
     const [record, diagnostics] = avro.unstable.buildAvroRecordWithDiagnostics(program, model);
     if (record === undefined) {

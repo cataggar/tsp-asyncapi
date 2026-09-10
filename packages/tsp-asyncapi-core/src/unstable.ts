@@ -21,6 +21,9 @@
 
 export { asyncAPILinter } from "./linter.js";
 export { resolveService } from "./resolve/service.js";
+export type { DocumentDeclarations } from "./resolve/document-declarations.js";
+export { getMessageState } from "./decorators/messages/message.js";
+export type { ChannelTarget, MessageState } from "./decorators/index.js";
 // `resolveService` takes an index of generated schemas. A consumer of this
 // entry point has to be able to name the argument it passes.
 export { emptySchemaArtifacts } from "./schema-artifacts.js";
@@ -32,6 +35,7 @@ export { BindingPlacements } from "./resolve/bindings.js";
 export {
   isProtobufExternRef,
   isProtobufMap,
+  isProtobufMessage,
   listProtobufMessageModels,
   protobufFieldIndexOf,
   protobufReservationsOf,

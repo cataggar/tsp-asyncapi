@@ -288,8 +288,8 @@ export function resolveMessages(
   program: Program,
   placements: BindingPlacements,
   artifacts: SchemaArtifactIndex,
+  declared: ReadonlyMap<Model, MessageState> = listMessages(program),
 ): ResolvedMessages {
-  const declared = listMessages(program);
   const models = [...declared.keys()];
   const plan = planMessageHeaders(program, models);
   reportIgnoredNestedHeaders(program, models, plan.topLevel);

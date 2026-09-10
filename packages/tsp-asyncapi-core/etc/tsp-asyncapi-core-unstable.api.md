@@ -6,6 +6,7 @@
 
 import { DiagnosticTarget } from '@typespec/compiler';
 import { Enum } from '@typespec/compiler';
+import { Interface } from '@typespec/compiler';
 import { LinterDefinition } from '@typespec/compiler';
 import { Model } from '@typespec/compiler';
 import { ModelProperty } from '@typespec/compiler';
@@ -89,6 +90,20 @@ export interface ChannelParameterNode {
 }
 
 // @public
+export type ChannelTarget = Interface | Namespace;
+
+// Warning: (ae-internal-missing-underscore) The name "DocumentDeclarations" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export interface DocumentDeclarations {
+    readonly channels: readonly ChannelTarget[];
+    readonly diagnosticTargets: ReadonlySet<Type>;
+    readonly models: readonly Model[];
+    readonly namespaces: readonly Namespace[];
+    readonly operations: readonly Operation[];
+}
+
+// @public
 export const emptySchemaArtifacts: SchemaArtifactIndex;
 
 // @public
@@ -98,6 +113,11 @@ export interface ExternalSchemaArtifact {
     readonly schema: unknown;
     readonly schemaFormat: string;
 }
+
+// Warning: (ae-internal-missing-underscore) The name "getMessageState" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export function getMessageState(program: Program, model: Model): MessageState | undefined;
 
 // Warning: (ae-internal-missing-underscore) The name "InfoNode" should be prefixed with an underscore because the declaration is marked as @internal
 //
@@ -126,6 +146,11 @@ export function isProtobufExternRef(program: Program, type: Type): boolean;
 //
 // @internal
 export function isProtobufMap(program: Program, type: Type): boolean;
+
+// Warning: (ae-internal-missing-underscore) The name "isProtobufMessage" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export function isProtobufMessage(program: Program, model: Model): boolean;
 
 // Warning: (ae-internal-missing-underscore) The name "listProtobufMessageModels" should be prefixed with an underscore because the declaration is marked as @internal
 //
@@ -187,6 +212,11 @@ export type MessagePayloadNode = {
 export interface MessageRefNode {
     readonly channelKey: string;
     readonly messageKey: string;
+}
+
+// @public
+export interface MessageState {
+    name?: string;
 }
 
 // Warning: (ae-internal-missing-underscore) The name "OperationNode" should be prefixed with an underscore because the declaration is marked as @internal
@@ -251,7 +281,7 @@ export function resolveProtobufPackage(program: Program, type: Model | Enum): Pr
 // Warning: (ae-internal-missing-underscore) The name "resolveService" should be prefixed with an underscore because the declaration is marked as @internal
 //
 // @internal
-export function resolveService(program: Program, service: Service | undefined, placements: BindingPlacements, artifacts?: SchemaArtifactIndex): AsyncAPIService;
+export function resolveService(program: Program, service: Service | undefined, placements: BindingPlacements, artifacts?: SchemaArtifactIndex, declarations?: DocumentDeclarations): AsyncAPIService;
 
 // @public
 export interface SchemaArtifactIndex {
@@ -308,7 +338,7 @@ export interface UnreadableProtobufPackage {
 
 // Warnings were encountered during analysis:
 //
-// src/resolve/service.ts:432:29 - (ae-forgotten-export) The symbol "MultiFormatSchemaObject" needs to be exported by the entry point unstable.d.ts
+// src/resolve/service.ts:434:29 - (ae-forgotten-export) The symbol "MultiFormatSchemaObject" needs to be exported by the entry point unstable.d.ts
 
 // (No @packageDocumentation comment for this package)
 

@@ -11,7 +11,7 @@
 
 import { Model, Operation, Program, getDoc, getSummary } from "@typespec/compiler";
 import { ChannelTarget } from "../decorators/channels/state.js";
-import { OperationActionState, listOperationActions } from "../decorators/operations/state.js";
+import { OperationActionState } from "../decorators/operations/state.js";
 import { listReplyDeclarations } from "../decorators/operations/reply-state.js";
 import { getOperationAction } from "../decorators/operations/action.js";
 import { reportDiagnostic } from "../lib.js";
@@ -22,7 +22,8 @@ import { resolveExtensions } from "./extensions.js";
 import { BindingPlacements, markBindingsPlaced, resolveBindings } from "./bindings.js";
 import { EmittedChannel } from "./channels.js";
 import { owningChannelTarget } from "./channels/scope.js";
-import { operationSides } from "./operation-models.js";
+import { operationSides, type OperationModelContext } from "./operation-models.js";
+import { documentActions, type DocumentDeclarations } from "./document-declarations.js";
 import { operationId } from "./operations/id.js";
 import { resolveMessageRefs } from "./operations/messages.js";
 import { resolveOperationReply } from "./operations/reply.js";
@@ -76,6 +77,8 @@ export function resolveOperations(
   messageKeys: ReadonlyMap<Model, string>,
   declaredSchemes: ReadonlySet<string>,
   placements: BindingPlacements,
+  declarations?: DocumentDeclarations,
+  modelContext?: OperationModelContext,
 ): ResolvedOperations {
   const nodes: OperationNode[] = [];
   const claimed = new Set<string>();
@@ -86,10 +89,12 @@ export function resolveOperations(
   // exception takes itself back out below.
   const extensionCarriers = new Set<Operation>();
 
-  const placed: PlacedOperation[] = listOperationActions(program).map(({ target, record }) => {
-    const owner = owningChannelTarget(target);
-    return { target, record, channel: owner === undefined ? undefined : channels.get(owner) };
-  });
+  const placed: PlacedOperation[] = documentActions(program, declarations).map(
+    ({ target, record }) => {
+      const owner = owningChannelTarget(target);
+      return { target, record, channel: owner === undefined ? undefined : channels.get(owner) };
+    },
+  );
   const emittedNodes = emittedDeclarationNodes(placed);
 
   for (const { target, record, channel } of placed) {
@@ -126,7 +131,7 @@ export function resolveOperations(
     }
     claimed.add(key);
 
-    const { request, reply } = operationSides(program, target, record.action);
+    const { request, reply } = operationSides(program, target, record.action, modelContext);
     const replyNode = resolveOperationReply(program, {
       operation: target,
       ownChannel: channel,
@@ -153,7 +158,7 @@ export function resolveOperations(
     });
   }
 
-  reportRepliesWithoutAction(program);
+  reportRepliesWithoutAction(program, declarations);
 
   return { operations: nodes, extensionCarriers };
 }
@@ -187,8 +192,9 @@ function emittedDeclarationNodes(placed: readonly PlacedOperation[]): ReadonlySe
  *
  * @param program - The program to read the state from
  */
-function reportRepliesWithoutAction(program: Program): void {
+function reportRepliesWithoutAction(program: Program, declarations?: DocumentDeclarations): void {
   for (const { operation, target } of listReplyDeclarations(program)) {
+    if (declarations !== undefined && !declarations.diagnosticTargets.has(operation)) continue;
     if (getOperationAction(program, operation) !== undefined) continue;
     reportDiagnostic(program, { code: "reply-without-action", target });
   }

@@ -41,20 +41,20 @@ function createTester(code: TestSource, options: Record<string, unknown>) {
 }
 
 /**
- * Compiles one source and hands back the text of the file the emitter wrote.
+ * Compiles one source and retains every actual emitted filename.
  *
- * Every other helper here builds on this one. The option names that decide
- * which output file to read are the part worth keeping in one place.
+ * Multi-document fixtures declare their own services by default. No filename
+ * is inferred from a service name, version, or emitter option.
  *
  * @param code - The source of the compilation
  * @param options - The emitter options
  * @param includeService - Whether to wrap a single-file source in a service
- * @returns The emitted text, or undefined when the emitter wrote nothing
+ * @returns All emitted text, every diagnostic, and the original program
  */
-async function emitOutput(
+export async function emitOutputsWithDiagnostics(
   code: TestSource,
-  options: Record<string, unknown>,
-  includeService: boolean,
+  options: Record<string, unknown> = {},
+  includeService = false,
 ) {
   // Only a single-file source gets this wrapper added. A multi-file case
   // must declare its own service, since only its author knows which file
@@ -66,12 +66,30 @@ async function emitOutput(
 
   const [result, diagnostics] = await createTester(code, options).compileAndDiagnose(fullCode);
 
-  const fileType = typeof options["file-type"] === "string" ? options["file-type"] : "yaml";
-  const outputFileName =
-    typeof options["output-file"] === "string" ? options["output-file"] : `asyncapi.${fileType}`;
+  const outputs: Readonly<Record<string, string>> = { ...result.outputs };
+  return { outputs, diagnostics, program: result.program };
+}
 
-  const outputs: Record<string, string | undefined> = result.outputs;
-  return { content: outputs[outputFileName], fileType, diagnostics, program: result.program };
+/** Parses all emitted documents, retaining the raw outputs and actual filenames. */
+export async function emitDocumentsWithDiagnostics(
+  code: TestSource,
+  options: Record<string, unknown> = {},
+  includeService = false,
+): Promise<{
+  documents: Readonly<Record<string, AsyncAPIDocument>>;
+  outputs: Readonly<Record<string, string>>;
+  diagnostics: readonly Diagnostic[];
+  program: Program;
+}> {
+  const result = await emitOutputsWithDiagnostics(code, options, includeService);
+  const documents: Record<string, AsyncAPIDocument> = {};
+  for (const [filename, content] of Object.entries(result.outputs)) {
+    // Custom output filenames need not have the selected serialization's extension.
+    const parsed: unknown =
+      options["file-type"] === "json" ? JSON.parse(content) : yaml.parse(content);
+    documents[filename] = parsed as AsyncAPIDocument;
+  }
+  return { ...result, documents };
 }
 
 /**
@@ -96,22 +114,20 @@ export async function emitDocumentWithDiagnostics(
   diagnostics: readonly Diagnostic[];
   program: Program;
 }> {
-  const { content, fileType, diagnostics, program } = await emitOutput(
+  const { documents, diagnostics, program } = await emitDocumentsWithDiagnostics(
     code,
     options,
     includeService,
   );
 
-  if (content === undefined) {
-    return { doc: null, diagnostics, program };
+  const filenames = Object.keys(documents);
+  if (filenames.length > 1) {
+    throw new Error(
+      `Expected one AsyncAPI output, received ${String(filenames.length)}: ${filenames.join(", ")}. ` +
+        "Use emitDocumentsWithDiagnostics for multiple documents.",
+    );
   }
-
-  // Both parsers return `any`. This is the one place that names the real
-  // type, so every caller reads a typed document from here. A path missing
-  // from `AsyncAPIDocument` is then a compile error, not an `undefined` at
-  // run time.
-  const parsed: unknown = fileType === "json" ? JSON.parse(content) : yaml.parse(content);
-  return { doc: parsed as AsyncAPIDocument, diagnostics, program };
+  return { doc: filenames.length === 0 ? null : documents[filenames[0]], diagnostics, program };
 }
 
 /**

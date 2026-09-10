@@ -3,14 +3,6 @@ import { bySourcePosition, sourcePositionOf } from "../../source-order.js";
 import { useStateMap } from "@typespec/compiler/utils";
 import { singleApplication } from "../single-application.js";
 
-/**
- * The sorted `@message` map of one program.
- *
- * The set of marked models does not change after decorators have run.
- * One program therefore builds the map once.
- */
-const listedMessages = new WeakMap<Program, Map<Model, MessageState>>();
-
 const messageStateKey = Symbol.for("tsp-asyncapi.message");
 
 const messageAppliedKey = Symbol.for("tsp-asyncapi.message.applied");
@@ -30,7 +22,14 @@ export interface MessageState {
   name?: string;
 }
 
-const [, setMessage, getMessageStateMap] = useStateMap<Model, MessageState>(messageStateKey);
+const [getMessageInternal, setMessage, getMessageStateMap] = useStateMap<Model, MessageState>(
+  messageStateKey,
+);
+
+/** Reads the marker for one live Model without enumerating program state. @internal */
+export function getMessageState(program: Program, model: Model): MessageState | undefined {
+  return getMessageInternal(program, model);
+}
 
 /**
  * Marks a model as an AsyncAPI message.
@@ -93,9 +92,8 @@ export function $message(context: DecoratorContext, target: Model, name?: string
  * Sorting here matches every other program-wide list the emitter reads, such
  * as the servers, the channels, and the security schemes.
  *
- * The sorted map is built once per program. Later calls reuse it. Decorators
- * have already run when this is first called, so a later call sees the same
- * set of messages.
+ * Each call reads current state. Compiler mutations can replay decorators
+ * after an earlier read, so a Program-keyed cache would become stale.
  *
  * @param program - The program to read the state from
  *
@@ -105,13 +103,8 @@ export function $message(context: DecoratorContext, target: Model, name?: string
  * @public
  */
 export function listMessages(program: Program): Map<Model, MessageState> {
-  const cached = listedMessages.get(program);
-  if (cached !== undefined) return new Map(cached);
-
   const entries = [...getMessageStateMap(program)];
   const compare = bySourcePosition(program);
   entries.sort(([a], [b]) => compare(sourcePositionOf(a), sourcePositionOf(b)));
-  const listed = new Map(entries);
-  listedMessages.set(program, listed);
-  return new Map(listed);
+  return new Map(entries);
 }

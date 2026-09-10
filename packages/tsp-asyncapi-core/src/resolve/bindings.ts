@@ -140,7 +140,7 @@ export function resolveBindings(
       continue;
     }
     claimed.add(entry.protocol);
-    const carrier = carrierOf(entry.target);
+    const carrier = carrierOf(target);
     nodes.push({
       protocol: entry.protocol,
       renderer: entry.renderer,
@@ -199,8 +199,16 @@ export function markBindingsPlaced(
  * @param placements - What this build placed
  * @internal
  */
-export function reportUnattachedBindings(program: Program, placements: BindingPlacements): void {
-  const stray = listAllBindings(program).filter((entry) => !placements.has(entry));
+export function reportUnattachedBindings(
+  program: Program,
+  placements: BindingPlacements,
+  targets?: ReadonlySet<Type>,
+): void {
+  const entries =
+    targets === undefined
+      ? listAllBindings(program)
+      : [...targets].flatMap((target) => listBindings(program, target));
+  const stray = entries.filter((entry) => !placements.has(entry));
   stray.sort(bySourcePosition(program));
   for (const entry of stray) {
     reportDiagnostic(program, {

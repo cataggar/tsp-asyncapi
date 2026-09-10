@@ -1,0 +1,119 @@
+import {
+  getNamespaceFullName,
+  navigateType,
+  type Namespace,
+  type Program,
+  type Service,
+  type Type,
+} from "@typespec/compiler";
+import type { unsafe_Realm as Realm } from "@typespec/compiler/experimental";
+import { listMessages } from "tsp-asyncapi-core";
+import { getMessageState, type DocumentDeclarations } from "tsp-asyncapi-core/unstable";
+import type { SchemaArtifactInput } from "./schema-artifacts/provider.js";
+
+/**
+ * An adapter's selected graph. The Program is always the original Program;
+ * a compiler mutation supplies a live root and optionally its realm.
+ *
+ * @internal
+ */
+export interface EffectiveDocumentGraph {
+  readonly root: Namespace;
+  readonly service: Service | undefined;
+  readonly realm?: Realm;
+  readonly declarations?: DocumentDeclarations;
+}
+
+/** Immutable inputs for one resolve/lower build. No per-build caches live here. @internal */
+export interface DocumentContext {
+  readonly program: Program;
+  readonly originalService: Service | undefined;
+  readonly originalServiceId: string | undefined;
+  readonly service: Service | undefined;
+  readonly root: Namespace;
+  readonly realm: Realm | undefined;
+  /** Undefined explicitly selects legacy whole-program discovery. */
+  readonly declarations: DocumentDeclarations | undefined;
+  readonly artifactInput: SchemaArtifactInput;
+}
+
+/**
+ * Creates one document's input boundary without selecting services or versions.
+ * An effective graph opts into live discovery; ordinary callers retain today's
+ * global declarations even when metadata comes from one service.
+ *
+ * @internal
+ */
+export function createDocumentContext(
+  program: Program,
+  originalService: Service | undefined,
+  effective?: EffectiveDocumentGraph,
+): DocumentContext {
+  const root = effective?.root ?? program.getGlobalNamespaceType();
+  const declarations =
+    effective === undefined
+      ? undefined
+      : snapshotDeclarations(effective.declarations ?? discoverDocumentDeclarations(root));
+  const models =
+    declarations === undefined
+      ? [...listMessages(program).keys()]
+      : declarations.models.filter((model) => getMessageState(program, model) !== undefined);
+  return Object.freeze({
+    program,
+    originalService,
+    originalServiceId:
+      originalService === undefined ? undefined : getNamespaceFullName(originalService.type),
+    service: effective === undefined ? originalService : effective.service,
+    root,
+    realm: effective?.realm,
+    declarations,
+    artifactInput: Object.freeze({ program, models: Object.freeze(models) }),
+  });
+}
+
+/**
+ * Discovers reachable live declarations, not ownership. A service adapter can
+ * narrow these sets and add diagnostic targets before creating its context.
+ * State-map iteration is deliberately absent: it also contains removed types.
+ *
+ * @internal
+ */
+export function discoverDocumentDeclarations(root: Namespace): DocumentDeclarations {
+  const types = new Set<Type>();
+  const add = (type: Type): void => {
+    types.add(type);
+  };
+  navigateType(
+    root,
+    {
+      namespace: add,
+      interface: add,
+      operation: add,
+      model: add,
+      modelProperty: add,
+      scalar: add,
+      enum: add,
+      union: add,
+      unionVariant: add,
+      tuple: add,
+    },
+    {},
+  );
+  return snapshotDeclarations({
+    models: [...types].filter((type) => type.kind === "Model"),
+    channels: [...types].filter((type) => type.kind === "Namespace" || type.kind === "Interface"),
+    operations: [...types].filter((type) => type.kind === "Operation"),
+    namespaces: [...types].filter((type) => type.kind === "Namespace"),
+    diagnosticTargets: types,
+  });
+}
+
+function snapshotDeclarations(declarations: DocumentDeclarations): DocumentDeclarations {
+  return Object.freeze({
+    models: Object.freeze([...new Set(declarations.models)]),
+    channels: Object.freeze([...new Set(declarations.channels)]),
+    operations: Object.freeze([...new Set(declarations.operations)]),
+    namespaces: Object.freeze([...new Set(declarations.namespaces)]),
+    diagnosticTargets: new Set(declarations.diagnosticTargets),
+  });
+}
