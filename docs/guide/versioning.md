@@ -95,6 +95,14 @@ interface-channel, and action aliases are inventoried before mutation, inserted
 into cloned namespace maps before TypeSpec applies availability changes, and
 then traversed as real versioned types. Their properties, operation signatures,
 and removal behavior follow the selected view; source declarations stay unchanged.
+Distinct instances keep separate inventory keys even when their shared declaration
+is renamed. Normal channel/operation naming collisions are still diagnosed.
+
+Decorator replay diagnostics from an excluded service do not invalidate the
+selected service. Diagnostics from domain types actually referenced by the
+selected view, including headers and historical property types, remain errors.
+The adapter scopes only synchronous mutation-time replay; original compilation
+diagnostics are preserved.
 
 ## Dependencies and supported changes
 

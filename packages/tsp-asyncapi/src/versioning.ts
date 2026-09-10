@@ -1,25 +1,35 @@
 /**
- * Compiler 1.16 / versioning 0.86 adaptation. Mutate live type graphs, never
- * the original Program or its source types. Keep experimental calls here.
+ * Compiler 1.16 / versioning 0.86 adaptation. Keep the original Program and
+ * source types; confine experimental mutation and synchronous replay hooks here.
  */
 import {
   compilerAssert,
+  getDiscriminator,
   getService,
   getNamespaceFullName,
   isTemplateInstance,
+  ListenerFlow,
+  navigateType,
+  type Diagnostic,
   type Interface,
   type Model,
   type Namespace,
   type Operation,
   type Program,
   type Service,
+  type SemanticNodeListener,
+  type Type,
 } from "@typespec/compiler";
-import { unsafe_mutateSubgraphWithNamespace } from "@typespec/compiler/experimental";
+import {
+  unsafe_mutateSubgraphWithNamespace,
+  type unsafe_MutatorWithNamespace as MutatorWithNamespace,
+} from "@typespec/compiler/experimental";
+import { createRekeyableMap } from "@typespec/compiler/utils";
 import { getVersioningMutators, resolveVersions } from "@typespec/versioning";
-import { reportDiagnostic } from "tsp-asyncapi-core";
+import { getHeadersModel, reportDiagnostic } from "tsp-asyncapi-core";
 import { discoverDocumentDeclarations, type EffectiveDocumentGraph } from "./document-context.js";
 import { discoverOriginalDocumentDeclarations } from "./service-context.js";
-import type { DocumentDeclarations } from "tsp-asyncapi-core/unstable";
+import { serviceOwner, type DocumentDeclarations } from "tsp-asyncapi-core/unstable";
 
 /** One root version, a dependency-only view, or an unchanged service. @internal */
 export interface VersionedDocumentPlan {
@@ -103,30 +113,17 @@ export function planVersionedDocuments(
           ]),
         );
         const sourceModels = new Map<Model, Model>();
-        const { type, realm } = unsafe_mutateSubgraphWithNamespace(
-          program,
-          [
-            {
-              name: "AsyncAPI erased declaration roots",
-              Namespace(source, clone) {
-                const aliases = erased.get(source);
-                if (aliases === undefined) return;
-                insertRoots(clone.models, aliases.models);
-                insertRoots(clone.interfaces, aliases.interfaces);
-                insertRoots(clone.operations, aliases.operations);
-              },
-            },
-            mutator,
-            {
-              name: "AsyncAPI version provenance",
-              Model(source, clone) {
-                sourceModels.set(clone, source);
-              },
-            },
-          ],
-          root,
+        const mutation = captureReplayDiagnostics(program, () =>
+          unsafe_mutateSubgraphWithNamespace(
+            program,
+            versionMutators(mutator, erased, sourceModels),
+            root,
+          ),
         );
+        const { type, realm } = mutation.value;
         compilerAssert(type.kind === "Namespace", "Versioning must preserve the namespace root.");
+        const declarations = liveDeclarations(type, inventory, erased);
+        reportReplayDiagnostics(program, type, declarations, mutation.diagnostics);
         return {
           originalService: service,
           version: version?.value,
@@ -137,7 +134,7 @@ export function planVersionedDocuments(
             version: version?.value,
             sourceModels,
             versionChoices,
-            declarations: liveDeclarations(type, inventory, erased),
+            declarations,
           },
         };
       });
@@ -149,6 +146,32 @@ interface ErasedRoots {
   readonly models: Model[];
   readonly interfaces: Interface[];
   readonly operations: Operation[];
+}
+
+function versionMutators(
+  mutator: MutatorWithNamespace,
+  erased: ReadonlyMap<Namespace, ErasedRoots>,
+  sourceModels: Map<Model, Model>,
+): MutatorWithNamespace[] {
+  return [
+    {
+      name: "AsyncAPI erased declaration roots",
+      Namespace(source, clone) {
+        const aliases = erased.get(source);
+        if (aliases === undefined) return;
+        clone.models = insertRoots(clone.models, aliases.models);
+        clone.interfaces = insertRoots(clone.interfaces, aliases.interfaces);
+        clone.operations = insertRoots(clone.operations, aliases.operations);
+      },
+    },
+    mutator,
+    {
+      name: "AsyncAPI version provenance",
+      Model(source, clone) {
+        sourceModels.set(clone, source);
+      },
+    },
+  ];
 }
 
 function erasedRoots(inventory: DocumentDeclarations): ReadonlyMap<Namespace, ErasedRoots> {
@@ -195,12 +218,135 @@ function erasedRoots(inventory: DocumentDeclarations): ReadonlyMap<Namespace, Er
   return roots;
 }
 
-function insertRoots<T>(map: Map<string, T>, roots: readonly T[]): void {
+function insertRoots<T>(map: Map<string, T>, roots: readonly T[]): Map<string, T> {
+  if (roots.length === 0) return map;
+  const retained = createRekeyableMap(map);
+  const instanceKeys = new Set<string>();
   let index = 0;
   for (const root of roots) {
-    while (map.has(`__asyncapi_version_instance_${String(index)}`)) index++;
-    map.set(`__asyncapi_version_instance_${String(index++)}`, root);
+    while (retained.has(`__asyncapi_version_instance_${String(index)}`)) index++;
+    const key = `__asyncapi_version_instance_${String(index++)}`;
+    instanceKeys.add(key);
+    retained.set(key, root);
   }
+  // The compiler rekeys renamed children by their declaration name. Multiple
+  // instances share that name; only their synthetic inventory keys must stay put.
+  const rekey = retained.rekey.bind(retained);
+  retained.rekey = (key, name) => {
+    return instanceKeys.has(key) ? retained.has(key) : rekey(key, name);
+  };
+  return retained;
+}
+
+interface ReplayDiagnostic {
+  readonly diagnostic: Diagnostic;
+  readonly type: Type;
+}
+
+function captureReplayDiagnostics<T>(
+  program: Program,
+  mutate: () => T,
+): { value: T; diagnostics: readonly ReplayDiagnostic[] } {
+  const diagnostics: ReplayDiagnostic[] = [];
+  const hooks = (
+    [
+      [program, "reportDiagnostic"],
+      [program, "reportDiagnostics"],
+      [program.checker, "finishType"],
+    ] as const
+  ).map(([target, key]) => ({
+    target,
+    key,
+    descriptor: Object.getOwnPropertyDescriptor(target, key),
+  }));
+  const report = program.reportDiagnostic.bind(program);
+  const finish = program.checker.finishType.bind(program.checker);
+  let finishing: Type | undefined;
+  // Namespace mutation visits excluded services too. Associate replay reports
+  // with the exact finished instance, not its potentially shared source node.
+  try {
+    program.reportDiagnostic = (diagnostic) => {
+      if (finishing === undefined) report(diagnostic);
+      else diagnostics.push({ diagnostic, type: finishing });
+    };
+    program.reportDiagnostics = (reports) => {
+      for (const diagnostic of reports) program.reportDiagnostic(diagnostic);
+    };
+    program.checker.finishType = (type) => {
+      const previous = finishing;
+      finishing = type;
+      try {
+        return finish(type);
+      } finally {
+        finishing = previous;
+      }
+    };
+    return { value: mutate(), diagnostics };
+  } finally {
+    for (const { target, key, descriptor } of hooks) {
+      if (descriptor === undefined) Reflect.deleteProperty(target, key);
+      else Object.defineProperty(target, key, descriptor);
+    }
+  }
+}
+
+function reportReplayDiagnostics(
+  program: Program,
+  root: Namespace,
+  declarations: DocumentDeclarations,
+  diagnostics: readonly ReplayDiagnostic[],
+): void {
+  if (diagnostics.length === 0) return;
+  const active = activeContractTypes(program, root, declarations);
+  for (const { diagnostic, type } of diagnostics) {
+    const owner = serviceOwner(program, type);
+    if (owner === undefined || owner === root || active.has(type)) {
+      program.reportDiagnostic(diagnostic);
+    }
+  }
+}
+
+function activeContractTypes(
+  program: Program,
+  root: Namespace,
+  declarations: DocumentDeclarations,
+): ReadonlySet<Type> {
+  const active = new Set<Type>();
+  const pending = [...declarations.diagnosticTargets].filter(
+    (type) => serviceOwner(program, type) === root,
+  );
+  const add = (type: Type): ListenerFlow | undefined => {
+    if (active.has(type)) return ListenerFlow.NoRecursion;
+    active.add(type);
+    return undefined;
+  };
+  const listeners: SemanticNodeListener = {
+    namespace: () => ListenerFlow.NoRecursion,
+    model(model) {
+      if (add(model) === ListenerFlow.NoRecursion) return ListenerFlow.NoRecursion;
+      const headers = getHeadersModel(program, model);
+      if (headers !== undefined) pending.push(headers);
+      if (getDiscriminator(program, model) !== undefined) pending.push(...model.derivedModels);
+      return undefined;
+    },
+    operation(operation) {
+      if (add(operation) !== ListenerFlow.NoRecursion) {
+        pending.push(...operation.parameters.properties.values(), operation.returnType);
+      }
+      return ListenerFlow.NoRecursion;
+    },
+    interface: add,
+    modelProperty: add,
+    scalar: add,
+    scalarConstructor: add,
+    enum: add,
+    enumMember: add,
+    union: add,
+    unionVariant: add,
+    tuple: add,
+  };
+  for (const type of pending) navigateType(type, listeners, {});
+  return active;
 }
 
 function operationProvenance(operations: readonly Operation[]): ReadonlySet<Operation> {

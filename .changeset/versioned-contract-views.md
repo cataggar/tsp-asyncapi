@@ -15,6 +15,9 @@ boundaries, including truly mutated alias-only messages, channels, and actions.
 Apply service ownership after mutation and preflight the shared output plan.
 Withhold the whole selected set for malformed schema extensions. Skip native
 fallback lowering after a binary refusal while validating other selected views.
+Retain distinct alias instances through rename rekeying. Scope mutation-time
+decorator diagnostics to selected services and their actual live dependencies
+without removing original compilation diagnostics.
 
 Keep standalone Avro record discovery on original declarations, including erased
 alias instances, when another emitter has replayed decorators on versioned clones.

@@ -86,6 +86,12 @@ registry 或 operation 來源簽章重新出現。已使用及未使用的 messa
 與 action alias 執行個體，會在 mutation 前盤點，再放入複製的 namespace map，讓 TypeSpec
 真正套用版本可用性及型別變更。這些執行個體的欄位、operation 簽章及移除行為都遵循
 選定檢視；原始來源宣告保持不變。
+同一宣告的不同執行個體即使共同改名，也會保留各自的盤點鍵值；一般的 channel 及
+operation 命名衝突仍會回報診斷。
+
+未選取 service 的 decorator 重播診斷不會使選定 service 失敗。但選定檢視實際參照的
+領域型別，包括 header 及歷史欄位型別，其錯誤仍會回報。Adapter 只限定同步 mutation
+期間的重播診斷範圍，不會移除原始編譯診斷。
 
 ## 相依版本與支援的變更
 
