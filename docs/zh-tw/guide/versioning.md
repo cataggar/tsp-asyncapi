@@ -108,6 +108,31 @@ schema 與 message、解析 interface channel 與 operation、分離 header 及�
 參數。遞迴與共用 reference 都指向同一份選定版本文件。
 Avro 與 Protobuf 預覽 payload 也使用相同有效型別圖，但仍受原有功能限制。
 
+## 跨部署保留的訊息
+
+選取契約版本不會遷移已在佇列中的訊息。上面的 v1 payload 即使包含 `legacy`，
+也不會自動取得 v2 必填的 `replacement`。即使只新增選填欄位，舊的 open producer
+若已用不同型別寫入同名欄位，保留訊息仍可能被拒絕。
+
+[真正版本化的 retention 矩陣](./schema-conversion/contract-fidelity.md)
+先比對 v1/v2/v3 的實際檔名與有效形狀，再擷取通過 producer 驗證的 JSON，
+之後所有新舊 consumer 方向都重複使用原值。各 fixture 分別涵蓋新增、兩種選填性
+變更、移除、連續改名、enum、限制、wire type/nullability 與應用程式 headers。
+明確選取的 v2/v3 部署也會讀取同一份 v1 訊息。
+寬容 consumer 接受未知欄位，但仍遵守 schema 限制；嚴格 consumer 還會拒絕
+payload/header 契約中未宣告的名稱。兩種政策都不改寫儲存的值。
+
+有限的 preview 控制保留真正的 Avro/proto3 位元組與 producer schema。
+Avro reader 預設值與欄位遺失會視為語意內容改變，不冒充原值保留。
+Protobuf 可能在缺少來源必填欄位時仍解碼成功，固定使用的 reader 在 relay 時也可能
+遺失未知 tag；同一來源的 native 版本化 schema 提供必填性控制。
+較廣的[獨立二進位演進涵蓋範圍](https://github.com/cataggar/tsp-asyncapi/blob/main/test/integration/contract-binary-evolution.test.ts)
+與這些版本化見證保持分離。
+
+測試假設原始訊息與 writer 契約仍可取得，沒有啟動 broker。
+相容性結果不證明交付、settlement、TTL、retry、排序、exactly-once processing
+或業務語意正確性。
+
 ## 限制與拒絕輸出
 
 - TypeSpec 會驗證 decorator 的目標。例如可以版本化 channel **interface**，但

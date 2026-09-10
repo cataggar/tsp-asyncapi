@@ -125,12 +125,72 @@ asserted on the emitted schema. avsc without custom logical adapters does not
 prove those semantics. `local-timestamp-*` is refused because it is not part of
 the advertised Avro 1.9.0 dialect.
 
+## Version-generated retained messages
+
+The retention suites use real TypeSpec `@versioned` v1/v2/v3 views through the
+[versioning adapter](../versioning.md), not edited copies of JSON schemas.
+Before any acceptance assertion, they check the exact output set
+`asyncapi.1.0.json`, `asyncapi.2.0.json`, `asyncapi.3.0.json`, each selected
+`info.version`, the AsyncAPI **3.1.0** target, and live payload/header fields,
+required sets, enum members, types and constraint bounds.
+
+Each JSON witness is admitted by its **producer snapshot** and serialized once
+with `readJson`. The resulting value and serialized text are retained and reused
+unchanged by every consumer. No consumer-shaped reconstruction, renaming,
+coercion, default injection or removal of unknown fields occurs. The ten
+individually attributable fixtures contain 34 produced records and 204 consumer
+outcomes (three versions, two policies), including 70 expected rejections.
+
+| Case        | Version-generated change                                | Retention evidence                                                                                            |
+| ----------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| R01         | Optional field added in v2                              | A declared-only v1 message survives; an old-valid `note: 42` collides with the new optional string.           |
+| R02         | Required field with a default added in v2               | The v1 omission fails in v2 and v3; a JSON default does not repair it.                                        |
+| R03a / R03b | Optional-to-required / required-to-optional             | Separate fixtures expose each direction without one change masking another.                                   |
+| R04         | Required field removed in v2                            | Tolerant readers accept the old extra field without rewriting it; old readers reject new messages missing it. |
+| R05         | A property renamed in both v2 and v3                    | Old, intermediate and current names stay distinct; queued values are not migrated.                            |
+| R06         | Enum member added in v2, another removed in v3          | A v1 legacy value survives v2 but fails v3; a new member fails the old consumer.                              |
+| R07         | Integer bounds tightened in v2, widened in v3           | Retained endpoints fail the intermediate deployment; newly widened values fail older consumers.               |
+| R08         | String changes to integer, then integer-or-null         | Numeric text is not coerced, and null is admitted only by its actual snapshot.                                |
+| R09         | Optional application header added in v2, required in v3 | Header omissions and unknown-name collisions fail independently of the unchanged payload.                     |
+
+**Tolerant** means open to unknown payload/header fields, not tolerant of wrong
+types, missing required fields, unknown enums, invalid formats or violated bounds.
+**Strict** applies the same schema checks plus explicit consumer-known field sets
+for payload and headers; a version with no declared headers knows no header names.
+All fixture producers use the open profile. Consequently, an open producer's
+extra-field witness can fail even a same-version strict consumer.
+
+A separate deployment control selects `"1.0"`, then `"2.0"` and `"3.0"` in
+independent emissions. The exact same queued v1 `amount: 0` is rejected by v2's
+minimum of 10 and accepted by v3's minimum of 0. This assumes the original record
+is still available; it does not claim that a broker retained it after an earlier
+consumer attempted delivery.
+
+Bounded version-generated **Avro 1.9** and **proto3** controls also capture writer
+bytes once and read the same bytes with independently constructed v1/v2/v3 codecs.
+Avro asserts exact reader defaults (`note: null`, `generation: 0`), dropped fields
+and two resolver refusals when the required v3 field lacks a default. A v1 relay
+loses v3 content; later defaults do not restore its original values. Protobuf
+asserts unknown-tag loss and absent own-field presence. Decoding v1 bytes under
+v3 succeeds, but the native v3 view of the **same TypeSpec source** rejects the
+missing source-required `generation` field. These are semantic-content assertions
+separate from the unchanged retained bytes, not a promise of byte-preserving
+decode/re-encode.
+
+The broader [independent binary writer/reader matrix](https://github.com/cataggar/tsp-asyncapi/blob/main/test/integration/contract-binary-evolution.test.ts)
+continues to cover aliases, enums, type/tag changes and reader/writer restrictions;
+the retention controls do not duplicate or expand that capability claim.
+The harness retains the producer schema and codec identity alongside each record
+(Avro resolution requires the writer schema). It models no schema-registry
+availability, application migration, broker storage or delivery operation.
+
 ## Scope and running the evidence
 
 The existing Vitest runner auto-discovers `contract-fidelity`,
 `contract-native-diagnostics`, `contract-encoded-union-references`,
 `contract-validator-draft07`, `contract-evolution`, `contract-binary-fidelity`
-and `contract-binary-evolution`. The data rows live in
+and `contract-binary-evolution`, plus `contract-versioned-retention` and
+`contract-versioned-binary-retention`. The data rows live in
 `test/fixtures/contract-fidelity`; binary pairs carry their expected values in
 their suite. Expected negatives are ordinary assertions, not skipped tests.
 Generated numeric witnesses are bounded and use seed `3107`.
@@ -141,13 +201,14 @@ The validators are test utilities, not emitter runtime dependencies.
 
 These finite witnesses are counterexamples or evidence for a named consumer
 profile, **not** a proof of schema-language inclusion, compatibility with every
-client, or safety across every historic producer. Version-generated V1/V2/V3
-and retained-message windows remain a separate slice after version-aware emission.
-The independent old/new compilations here do not pretend to exercise versioning.
+client, or safety across every historic producer. Independent old/new compilations
+and the real version-generated retention matrix establish different evidence;
+neither establishes compatibility for every queued message or retention window.
 
 AsyncAPI uses native draft-07, nullable unions and its own discriminator shape;
 it is not OpenAPI 3.0 `nullable` or HTTP request/response visibility projection.
 Partial lifecycle visibility does not select send/receive shapes. JSON encoded
 names are media-type-specific and are not binary field aliases.
 Application headers are not broker-native metadata. No fixture proves delivery,
-ordering, TTL, settlement, retries, deduplication, idempotency or business meaning.
+ordering, TTL, settlement, retries, exactly-once processing, deduplication,
+idempotency or business meaning.
