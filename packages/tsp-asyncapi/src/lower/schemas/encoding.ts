@@ -88,6 +88,16 @@ function naturalScalarShape(scalar: Scalar): SchemaObject {
   return scalar.baseScalar ? naturalScalarShape(scalar.baseScalar) : {};
 }
 
+/** Read the effective scalar wire type without rebuilding or mutating its shared schema. */
+function scalarWireShape(program: Program, scalar: Scalar): SchemaObject {
+  const encodeData = getEncode(program, scalar);
+  if (encodeData !== undefined) return naturalScalarShape(encodeData.type);
+  if (!isBuiltinScalar(scalar) && scalar.baseScalar !== undefined) {
+    return scalarWireShape(program, scalar.baseScalar);
+  }
+  return naturalScalarShape(scalar);
+}
+
 /**
  * Returns the type the encoding is resolved against.
  *
@@ -165,8 +175,12 @@ export function filterEncodedConstraints(
   wireShape: SchemaObject,
   target: Scalar | ModelProperty,
   diagnostics: SchemaDiagnostics,
+  program?: Program,
 ): SchemaObject {
-  const wireTypes = wireDomains(wireShape);
+  const wireTypes = wireDomains(
+    wireShape,
+    program === undefined ? undefined : { program, type: declaredTypeOf(target) },
+  );
   if (wireTypes === undefined) return { ...schema };
   return Object.fromEntries(
     Object.entries(schema).filter(([keyword]) => {
@@ -185,22 +199,47 @@ export function filterEncodedConstraints(
   );
 }
 
-/** Unknown references remain conservative; a constraint may still govern their values. */
-function wireDomains(schema: SchemaObject): ReadonlySet<string> | undefined {
+interface WireSource {
+  readonly program: Program;
+  readonly type: Type;
+}
+
+/** Only known scalar references are resolved; unknown domains remain conservative. */
+function wireDomains(schema: SchemaObject, source?: WireSource): ReadonlySet<string> | undefined {
+  if (schema.$ref !== undefined) {
+    return source?.type.kind === "Scalar"
+      ? wireDomains(scalarWireShape(source.program, source.type))
+      : undefined;
+  }
   if (schema.type !== undefined) {
     return new Set(Array.isArray(schema.type) ? schema.type : [schema.type]);
   }
   const alternatives = schema.anyOf ?? schema.oneOf;
   if (alternatives !== undefined) {
-    const domains = alternatives.map(wireDomains);
-    if (domains.some((domain) => domain === undefined)) return undefined;
-    return new Set(domains.flatMap((domain) => (domain === undefined ? [] : [...domain])));
+    return unionWireDomains(alternatives, source);
   }
   for (const branch of schema.allOf ?? []) {
-    const domain = wireDomains(branch);
+    const domain = wireDomains(branch, source);
     if (domain !== undefined) return domain;
   }
   return undefined;
+}
+
+function unionWireDomains(
+  branches: readonly SchemaObject[],
+  source?: WireSource,
+): ReadonlySet<string> | undefined {
+  const variants = source?.type.kind === "Union" ? [...source.type.variants.values()] : [];
+  const domains = branches.map((branch, index) =>
+    wireDomains(
+      branch,
+      source !== undefined && variants.length === branches.length
+        ? { program: source.program, type: variants[index].type }
+        : undefined,
+    ),
+  );
+  if (domains.some((domain) => domain === undefined)) return undefined;
+  return new Set(domains.flatMap((domain) => (domain === undefined ? [] : [...domain])));
 }
 
 /**

@@ -52,8 +52,10 @@ New native warnings make previously silent limitations visible:
 Malformed known extension keywords report `invalid-schema-extension` errors.
 Encoding rewrites every scalar `allOf` level; constraints for the old wire type
 are omitted with a warning, not left as meaningless bounds or contradictory types.
-Nullable unions are inspected by branch domain; constraints that still apply to
-an unencoded branch remain in place. An authored `$ref` also warns when it
+Nullable unions are inspected by branch domain, including known scalar references
+and their inherited encodings without changing shared components. Constraints
+that still apply to another branch remain in place; genuinely unknown reference
+domains stay conservative. An authored `$ref` also warns when it
 displaces generated validation siblings. Enum equality ignores object-key order,
 and later-draft keywords are detected inside schema-valued `dependencies`.
 No numeric-to-string range regex or universal conversion solver is invented.
@@ -126,7 +128,8 @@ the advertised Avro 1.9.0 dialect.
 ## Scope and running the evidence
 
 The existing Vitest runner auto-discovers `contract-fidelity`,
-`contract-native-diagnostics`, `contract-validator-draft07`, `contract-evolution`, `contract-binary-fidelity`
+`contract-native-diagnostics`, `contract-encoded-union-references`,
+`contract-validator-draft07`, `contract-evolution`, `contract-binary-fidelity`
 and `contract-binary-evolution`. The data rows live in
 `test/fixtures/contract-fidelity`; binary pairs carry their expected values in
 their suite. Expected negatives are ordinary assertions, not skipped tests.

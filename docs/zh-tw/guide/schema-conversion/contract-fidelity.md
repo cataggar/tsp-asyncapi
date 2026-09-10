@@ -47,7 +47,8 @@ spread 則把欄位變成 message 自有欄位。矩陣沒有改變這些規則�
 已知 extension 關鍵字值不合法時回報 `invalid-schema-extension` error。
 Encoding 會改寫 scalar 的各層 `allOf`；不適用新 wire type 的 constraint 省略並警告，
 不留下無意義的範圍或互相矛盾的型別，也不猜測數字轉字串範圍的 regex。
-Nullable union 會依分支型別檢查；仍適用未編碼分支的限制會保留。
+Nullable union 會依分支型別檢查，包含已知 scalar 參照與繼承的 encoding，
+不修改共用 component。仍適用其他分支的限制會保留；真正未知的參照型別則保守處理。
 作者新增的 `$ref` 若讓產生的同層驗證關鍵字失效，也會警告。
 Enum 相等性不受物件鍵順序影響；schema 形式的 `dependencies` 也會檢查較新 draft 關鍵字。
 
@@ -102,7 +103,8 @@ schema；沒有 custom logical adapter 的 avsc 不證明它們的語意。`loca
 ## 範圍與執行
 
 既有 Vitest runner 自動探索 `contract-fidelity`、`contract-native-diagnostics`、
-`contract-validator-draft07`、`contract-evolution`、`contract-binary-fidelity`、`contract-binary-evolution`。
+`contract-encoded-union-references`、`contract-validator-draft07`、`contract-evolution`、
+`contract-binary-fidelity`、`contract-binary-evolution`。
 資料列在 `test/fixtures/contract-fidelity`，二進位 pair 的預期值在各 suite。
 預期拒絕是一般 assertion，不是 skip。產生的有限整數見證使用 seed `3107`。
 

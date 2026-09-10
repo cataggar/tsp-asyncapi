@@ -621,6 +621,7 @@ export function withPropertyDocs(
           encoded,
           prop,
           diagnostics,
+          program,
         )
       : buildValidationKeywords(program, prop, diagnostics);
   const { format, ...restValidation } = validation;
