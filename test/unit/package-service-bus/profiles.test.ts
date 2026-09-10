@@ -5,6 +5,7 @@ import { Ajv } from "ajv";
 import { describe, expect, it } from "vitest";
 import { getExtensions, isPlainObject } from "tsp-asyncapi-core";
 import { EXTENSION_KEY, getProfile, NATIVE_PROPERTY_MAPPINGS } from "tsp-azure-service-bus";
+import { ServiceBusTester } from "tsp-azure-service-bus/testing";
 import type { AsyncAPIDocument } from "#emitter/types/index.js";
 import { channelsOf, messagesOf, operationsOf } from "../../utils/document.js";
 import { targetText } from "../../utils/diagnostics.js";
@@ -141,6 +142,17 @@ async function rejected(options: Options, code: string) {
 }
 
 describe("Service Bus: typed and raw profile conformance", () => {
+  it("provides a standalone compiler tester without registering an emitter", async () => {
+    const [{ program }, diagnostics] = await ServiceBusTester.compileAndDiagnose(contract());
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "tsp-azure-service-bus/deployment-unverified",
+    ]);
+    expect(program.emitters).toEqual([]);
+    const service = program.getGlobalNamespaceType().namespaces.get("App");
+    if (!service) throw new Error("Missing test service.");
+    expect(getProfile(program, service)).toEqual(INFO);
+  });
+
   it.each([false, true])(
     "emits all four closed profiles (raw=%s), preserving native/header separation",
     async (raw) => {
@@ -716,6 +728,48 @@ describe("Service Bus: typed and raw profile conformance", () => {
       },
       "transport-conflict",
     );
+  });
+
+  it("validates server-selected OAuth2 client credentials against operation authentication", async () => {
+    const options: Options = {
+      serviceDecorators: `
+        @server("composed", #{host: "example.servicebus.windows.net", protocol: "amqps"})
+        @securityScheme("entra", #{
+          type: "oauth2",
+          flows: #{clientCredentials: #{
+            tokenUrl: "https://identity.example.invalid/token",
+            availableScopes: #{}
+          }}
+        })
+        @useSecurity("entra")
+      `,
+      operation: { ...SEND, authorizationRequirements: { tls: true, authentication: "entraId" } },
+    };
+    const { diagnostics, doc } = await compile(contract(options));
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    await expect(doc).toBeValidAsyncAPI();
+    expect(doc).toHaveProperty("servers.composed.security", [
+      { $ref: "#/components/securitySchemes/entra" },
+    ]);
+    expect(doc).toHaveProperty(
+      "components.securitySchemes.entra.flows.clientCredentials.tokenUrl",
+      "https://identity.example.invalid/token",
+    );
+    await rejected(
+      {
+        ...options,
+        operation: { ...SEND, authorizationRequirements: { tls: true, authentication: "sas" } },
+      },
+      "transport-conflict",
+    );
+  });
+
+  it("rejects an undeclared operation security reference before emission", async () => {
+    const { matching } = await rejected(
+      { operationDecorators: '@useSecurity("missing")' },
+      "transport-conflict",
+    );
+    expect(matching[0].message).toContain("Security scheme 'missing' is not declared.");
   });
 
   it("accepts explicit same-named application mirrors using encoded wire names and escaped pointers", async () => {

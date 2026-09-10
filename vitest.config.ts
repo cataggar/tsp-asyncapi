@@ -88,8 +88,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "lcov"],
-      include: ["packages/*/src/**/*.ts", "packages/*/dist/src/decorators/**/*.js"],
-      // The sources, plus the build output of the decorators only.
+      include: [
+        "packages/*/src/**/*.ts",
+        "packages/*/dist/src/decorators/**/*.js",
+        "packages/tsp-azure-service-bus/dist/src/**/*.js",
+      ],
+      // Select source or build output according to the real loading path.
       //
       // A decorator module is live twice at run time. `lib/main.tsp` imports
       // `../dist/src/tsp-index.js`, so the compiler runs decorator bodies from
@@ -102,15 +106,23 @@ export default defineConfig({
       //
       // So each file is collected from exactly one place. Decorators come from
       // `dist`, because that is where their bodies run, and `src/decorators/**`
-      // is excluded below to keep the pair from returning. Everything else
-      // comes from `src`.
+      // is excluded below to keep the pair from returning. Other core/emitter
+      // modules come from `src`; the compiler-only companion is handled below.
       //
-      // Both patterns are a `packages/*` glob rather than one package name.
+      // The two general patterns use `packages/*` rather than one package name.
       // A package added later carries decorators the compiler loads from its
       // own `dist`, and a named pattern would collect that package from the
       // copy whose bodies never run there.
+      //
+      // The Service Bus companion's entire validation graph is compiler-loaded,
+      // not just a decorators/ directory. Collect its real built modules,
+      // including its flat decorators.ts, and exclude their source twins.
+      // Its public imports also use the package's built entrypoint. Collecting
+      // source here instead reported zero hits despite the compiler fixtures;
+      // collecting both copies would double-count the implementation.
       exclude: [
         "packages/*/src/decorators/**/*.ts",
+        "packages/tsp-azure-service-bus/src/**/*.ts",
         "packages/*/src/index.ts",
         "packages/*/src/testing.ts",
         "test/**",
