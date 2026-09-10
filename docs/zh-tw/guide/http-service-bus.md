@@ -151,15 +151,13 @@ AsyncAPI `$ref`。Consumer 不必加入不使用的 topic channel 來掩蓋這�
 ## 產生與驗證
 
 使用 Node **24**、pnpm **11.21.0**、根目錄 frozen lockfile 與 workspace package。
-核准的最終 TypeSpec 工具鏈為 compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**，
+已驗證的 TypeSpec 工具鏈為 compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**，
 workspace 使用的 Protobuf/versioning 為 **0.86.0**。輸出版本另為
 OpenAPI **3.1.0**、AsyncAPI **3.1.0**、profile **0.1.0**。
 
-::: warning 草稿整合
-此堆疊範例目前以 1.15.0/0.85.0 編寫及產生。合併前仍需 rebase 到最終 companion
-與工具鏈、重新產生及獨立審查。現在的重現結果由 frozen checkout 決定，不是
-尚未驗證的版本宣稱。
-:::
+Companion **尚未發布**，目前請使用 workspace checkout。它必須與含必要
+extension API 的 core 版本協調發布，再固定真正發布的版本；package manifest
+不代表該版本已可安裝。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -177,9 +175,11 @@ pnpm run docs:build
 
 既有 CI 的 Vitest 會跑生成檢查、官方 AsyncAPI parser、離線 OpenAPI validator、
 本機 reference/profile 檢查，以及真正的有效/無效 payload、header 與 native
-fixture。HTTP 用 OpenAPI/2020-12，訊息用刻意限制範圍的 **Draft-07** validator，
-明確註冊 format，不轉型、不加 default、不移除欄位。擴充超出此 JSON 子集時，
-必須明確整合 fidelity harness，不可默默換方言。來自 HTTP/command/event 的 Order
+fixture。HTTP 用 OpenAPI/2020-12，訊息用共用 `createPayloadValidator` 與
+`createMessageValidator` 的 **Draft-07** 驗證路徑，明確註冊 format，不轉型、
+不加 default、不移除欄位。這些 helper 回傳接受結果與字串診斷；HTTP 仍用自己的
+已審查 validator，不拿它取代訊息方言。Native property 另做 fixture 檢查；
+其他 schema 語言或演進情境需要額外證據。來自 HTTP/command/event 的 Order
 會交叉驗證，也會驗證整個封裝，避免取錯 payload 層級卻仍通過。
 
 `deployment-unverified` 是預期且保留的警告。靜態 profile/schema 驗證不等於

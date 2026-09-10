@@ -12,6 +12,7 @@ import { resolveRef } from "../utils/json-pointer.js";
 import { validateOpenAPI31Document } from "../utils/openapi-validation.js";
 import { emitOpenAPI31 } from "../utils/openapi-emitter.js";
 import {
+  assertInteroperabilityOutputSet,
   generateInteroperability,
   INTEROPERABILITY_OUTPUTS,
   INTEROPERABILITY_ROOT,
@@ -53,6 +54,28 @@ const validateProfile = new Ajv({
 }).compile(profileSchema);
 
 describe("Public HTTP and Service Bus example: generation", () => {
+  it("rejects missing and extra artifacts, including nested and alternative YAML filenames", () => {
+    expect(() => {
+      assertInteroperabilityOutputSet([
+        ...INTEROPERABILITY_OUTPUTS,
+        "fixtures/flow.json",
+        "http/tspconfig.yaml",
+      ]);
+    }).not.toThrow();
+    expect(() => {
+      assertInteroperabilityOutputSet(INTEROPERABILITY_OUTPUTS.slice(1));
+    }).toThrow("Missing generated documents: asyncapi.yaml");
+    for (const extra of [
+      "asyncapi.old.json",
+      "processor/stale/asyncapi.json",
+      "http/openapi.yml",
+    ]) {
+      expect(() => {
+        assertInteroperabilityOutputSet([...INTEROPERABILITY_OUTPUTS, extra]);
+      }).toThrow(`Unexpected generated documents: ${extra}`);
+    }
+  });
+
   it("regenerates exactly the eight committed documents byte-for-byte", async () => {
     await generateInteroperability(true);
     expect(INTEROPERABILITY_OUTPUTS).toHaveLength(8);

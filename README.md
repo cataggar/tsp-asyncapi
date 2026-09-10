@@ -190,7 +190,7 @@ components:
 
 ## Examples
 
-Eighteen worked examples live in [`examples/`](./examples/), each with its TypeSpec source and the output an emitter wrote from it. Every protocol this library implements appears in at least one of them.
+Nineteen worked examples live in [`examples/`](./examples/), each with its TypeSpec source and the output an emitter wrote from it. Every protocol this library implements appears in at least one of them.
 
 | Example                                                             | What it shows                                  |
 | ------------------------------------------------------------------- | ---------------------------------------------- |
@@ -212,6 +212,7 @@ Eighteen worked examples live in [`examples/`](./examples/), each with its TypeS
 | [Protobuf payloads](./examples/16-protobuf-payloads/)               | Two Protobuf packages, `.proto` written too    |
 | [Avro schemas](./examples/17-avro-schemas/)                         | `.avsc` files alone, no AsyncAPI document      |
 | [Avro payloads](./examples/18-avro-payloads/)                       | Two Avro records, `.avsc` written too          |
+| [HTTP and Service Bus](./examples/19-http-service-bus/)             | Shared Order, distinct HTTP/message envelopes  |
 
 The [Examples page](https://tsp-asyncapi.marvinhsu.dev/guide/examples) describes each one in more detail.
 

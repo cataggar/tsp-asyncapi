@@ -31,16 +31,15 @@ pnpm exec vitest run test/integration/http-service-bus-example.test.ts test/inte
 git --no-pager diff -- examples/19-http-service-bus
 ```
 
-The approved final baseline is compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**, with
+The verified baseline is compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**, with
 Protobuf/versioning **0.86.0** where used by the workspace. Use the lockfile and
 workspace packages containing the companion API, not unpublished-version guesses.
 The complete example emits OpenAPI **3.1.0**, AsyncAPI **3.1.0**, and the Service Bus
 profile **0.1.0**; those are not TypeSpec or application versions.
 
-**Draft integration note:** this stacked branch currently generates with the
-1.15.0/0.85.0 authoring baseline. Rebase onto the approved toolchain and companion,
-regenerate, and independently review before merging. Remove this note only after
-that verification; the commands above use the actual frozen checkout.
+The companion is **unpublished**. Compile from this workspace until its coordinated
+release with the core version containing the required extension APIs. Pin actual
+released versions after that release; a package manifest is not proof of publication.
 
 To compile one application, run `pnpm exec tsp compile examples/19-http-service-bus`
 or append `/http`, `/processor`, or `/fulfillment`. Individual messaging configs
@@ -54,5 +53,7 @@ No warning is suppressed or presented as deployment evidence.
 
 `fixtures/flow.json` shows HTTP, message payloads, native properties, and separate
 application headers. `fixtures/invalid-orders.json` contains one-fault negatives.
-The tests use distinct Draft-07 and OpenAPI/2020-12 validators for the selected
-native JSON subset; this is not a universal dialect or compatibility proof.
+The tests use the shared `createPayloadValidator`/`createMessageValidator` Draft-07
+lane for messaging and the reviewed OpenAPI/2020-12 helpers for HTTP. Native
+properties are checked separately from payloads and application headers. The
+selected native JSON fixtures are not a universal dialect or compatibility proof.

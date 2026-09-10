@@ -18,6 +18,21 @@ export const INTEROPERABILITY_OUTPUTS = [
   "http/openapi.json",
 ] as const;
 
+export function assertInteroperabilityOutputSet(paths: readonly string[]): void {
+  const generated = paths
+    .map((path) => path.replaceAll("\\", "/"))
+    .filter((path) => /(?:^|\/)(?:openapi|asyncapi)[^/]*\.(?:ya?ml|json)$/i.test(path));
+  const missing = INTEROPERABILITY_OUTPUTS.filter((expected) => !generated.includes(expected));
+  const unexpected = generated.filter(
+    (path) => !INTEROPERABILITY_OUTPUTS.some((expected) => expected === path),
+  );
+  const errors = [
+    ...(missing.length ? [`Missing generated documents: ${missing.join(", ")}`] : []),
+    ...(unexpected.length ? [`Unexpected generated documents: ${unexpected.join(", ")}`] : []),
+  ];
+  if (errors.length) throw new Error(errors.join("\n"));
+}
+
 /**
  * Compile the actual entrypoints/configs, capturing only the eight declared files.
  * No transformed fixture source, shared service imports, or disk staging directory.
@@ -93,18 +108,7 @@ export async function generateInteroperability(check: boolean): Promise<void> {
       await writeFile(path, content);
     }
   }
-  for (const directory of [...APPLICATIONS, "http"]) {
-    const names = await readdir(join(INTEROPERABILITY_ROOT, directory));
-    const unexpected = names.filter(
-      (name) =>
-        /^(?:openapi|asyncapi).*\.(?:yaml|json)$/.test(name) &&
-        !INTEROPERABILITY_OUTPUTS.some(
-          (expected) => expected === [directory, name].filter(Boolean).join("/"),
-        ),
-    );
-    if (unexpected.length)
-      throw new Error(`Unexpected generated documents: ${unexpected.join(", ")}`);
-  }
+  assertInteroperabilityOutputSet(await readdir(INTEROPERABILITY_ROOT, { recursive: true }));
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

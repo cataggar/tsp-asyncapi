@@ -164,15 +164,13 @@ or live resources are needed to compile or validate.
 ## Generate and verify
 
 Use Node **24**, pnpm **11.21.0**, the root frozen lockfile and workspace packages.
-The approved final TypeSpec baseline is compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**
+The verified TypeSpec baseline is compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**
 and Protobuf/versioning **0.86.0** where used. Output versions are independently
 OpenAPI **3.1.0**, AsyncAPI **3.1.0**, and profile **0.1.0**.
 
-::: warning Draft integration
-This stacked example is currently authored/generated on 1.15.0/0.85.0. Final
-companion/toolchain rebasing, regeneration and independent review remain required.
-The frozen checkout, not an unverified version claim, determines current reproduction.
-:::
+The companion is **unpublished**. Use the workspace checkout until its coordinated
+release with a core version containing the required extension APIs, then pin
+actual published versions. A package manifest does not establish release availability.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -192,9 +190,12 @@ artifacts; it never rewrites baselines. No timestamps or random IDs are generate
 The existing CI Vitest invocation runs the generation check, official AsyncAPI
 parser, offline OpenAPI validator, local-reference and profile checks, and actual
 valid/invalid payload/header/native-fixture controls. HTTP uses OpenAPI/2020-12;
-messaging uses a deliberately restricted **Draft-07** validator with explicit formats
-and no coercion, defaults, or field removal. Growing beyond this selected JSON
-subset requires deliberate fidelity-harness integration, not a silent dialect switch.
+messaging uses the shared `createPayloadValidator` and `createMessageValidator`
+**Draft-07** lane, with explicit formats and no coercion, defaults, or field removal.
+These helpers return acceptance and string diagnostics; HTTP remains on its own
+reviewed OpenAPI/2020-12 validator, not a substituted messaging oracle. Native
+properties remain separate fixture checks. Other schema languages and evolution
+scenarios need additional evidence beyond this selected native JSON example.
 Samples originating from HTTP, commands, and events are checked against both sides;
 complete envelopes are also tested so wrong-level extraction cannot pass unnoticed.
 

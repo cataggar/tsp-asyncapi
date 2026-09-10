@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Ajv } from "ajv";
 import type { ValidateFunction } from "ajv";
-import addFormatsModule from "ajv-formats";
 import { EXTENSION_KEY, NATIVE_PROPERTY_MAPPINGS } from "tsp-azure-service-bus";
 import type { MessageProfile, NativeProperties, NativeString } from "tsp-azure-service-bus/types";
 import type { AsyncAPIDocument, MessageObject } from "#emitter/types/index.js";
 import { messagesOf, channelsOf } from "../utils/document.js";
 import { resolveRef } from "../utils/json-pointer.js";
 import { compileOpenAPI31Schema } from "../utils/openapi-validation.js";
+import {
+  createMessageValidator,
+  createPayloadValidator,
+  type PayloadValidator,
+} from "../utils/payload-validation.js";
 import { INTEROPERABILITY_ROOT } from "../utils/interoperability-generation.js";
 
 interface Order {
@@ -53,55 +56,10 @@ const PROCESSOR = read("processor/asyncapi.json") as AsyncAPIDocument;
 const FULFILLMENT = read("fulfillment/asyncapi.json") as AsyncAPIDocument;
 const HTTP = read("http/openapi.json");
 
-// Deliberately scoped to this example's native Draft-07 subset, not a fidelity
-// framework. Fail if generated schemas grow outside the supported vocabulary.
-const SUBSET = new Set([
-  "$ref",
-  "type",
-  "properties",
-  "required",
-  "items",
-  "minimum",
-  "maximum",
-  "minItems",
-  "minLength",
-  "format",
-  "enum",
-  "description",
-  "additionalProperties",
-]);
-function assertSubset(schema: unknown): void {
-  if (typeof schema === "boolean") return;
-  if (schema === null || typeof schema !== "object" || Array.isArray(schema))
-    throw new Error("Expected a native example Schema Object.");
-  const node = schema as Record<string, unknown>;
-  for (const key of Object.keys(node)) {
-    if (!SUBSET.has(key)) throw new Error(`Example payload validator does not support ${key}.`);
-  }
-  if (node.properties) for (const child of Object.values(node.properties)) assertSubset(child);
-  if (node.items !== undefined) assertSubset(node.items);
-  if (node.additionalProperties !== undefined) assertSubset(node.additionalProperties);
-}
-function nativeValidators(document: AsyncAPIDocument): Ajv {
-  const ajv = addFormatsModule.default(
-    new Ajv({
-      strict: false,
-      allErrors: true,
-      coerceTypes: false,
-      useDefaults: false,
-      removeAdditional: false,
-    }),
-  );
-  for (const [name, schema] of Object.entries(document.components?.schemas ?? {})) {
-    assertSubset(schema);
-    ajv.addSchema(schema, `#/components/schemas/${name}`);
-  }
-  return ajv;
-}
 const NATIVE = [
-  ["gateway", GATEWAY, nativeValidators(GATEWAY)],
-  ["processor", PROCESSOR, nativeValidators(PROCESSOR)],
-  ["fulfillment", FULFILLMENT, nativeValidators(FULFILLMENT)],
+  ["gateway", GATEWAY],
+  ["processor", PROCESSOR],
+  ["fulfillment", FULFILLMENT],
 ] as const;
 const ORDER_REF = "#/components/schemas/Orders.Domain.Order";
 const HTTP_REQUEST = compileOpenAPI31Schema(
@@ -115,12 +73,21 @@ const HTTP_RESPONSE = compileOpenAPI31Schema(
 const ORDER_READERS = [
   ["HTTP request", HTTP_REQUEST],
   ["HTTP response", HTTP_RESPONSE],
-  ...NATIVE.map(([name, , ajv]) => [name, ajv.compile({ $ref: ORDER_REF })] as const),
+  ...NATIVE.map(
+    ([name, document]) => [name, createPayloadValidator(document, { $ref: ORDER_REF })] as const,
+  ),
 ] as const;
 
-function assertAccepts(validate: ValidateFunction, value: unknown): void {
+function assertAccepts(validator: ValidateFunction | PayloadValidator, value: unknown): void {
   const before = structuredClone(value);
-  expect(validate(value), JSON.stringify(validate.errors)).toBe(true);
+  if (typeof validator === "function") {
+    expect(validator(value), JSON.stringify(validator.errors)).toBe(true);
+  } else {
+    expect(validator.lane).toBe("draft-07");
+    const result = validator.validate(value);
+    expect(result.accepted, result.errors.join("\n")).toBe(true);
+    expect(result.errors).toEqual([]);
+  }
   expect(value).toStrictEqual(before);
 }
 
@@ -194,54 +161,80 @@ describe("Interoperability: actual native JSON instances", () => {
   it.each(INVALID)("rejects $name in every HTTP/message Order reader", ({ order, keyword }) => {
     for (const [name, validate] of ORDER_READERS) {
       const before = structuredClone(order);
-      expect(validate(order), name).toBe(false);
-      expect(
-        validate.errors?.map((error) => error.keyword),
-        name,
-      ).toContain(keyword);
+      if (typeof validate === "function") {
+        expect(validate(order), name).toBe(false);
+        expect(
+          validate.errors?.map((error) => error.keyword),
+          name,
+        ).toContain(keyword);
+      } else {
+        const result = validate.validate(order);
+        expect(result.accepted, name).toBe(false);
+        expect(
+          result.errors.some((error) => error.includes(`: ${keyword} `)),
+          name,
+        ).toBe(true);
+      }
       expect(order).toStrictEqual(before);
     }
   });
 
-  it.each(NATIVE)(
-    "checks complete envelopes and application headers for %s",
-    (_name, document, ajv) => {
-      const fixtures = {
-        PlaceOrder: FLOW.command,
-        OrderCommandResult: FLOW.result,
-        OrderPlaced: FLOW.event,
-      };
-      for (const [name, message] of Object.entries(messagesOf(document))) {
-        const fixture = fixtures[name as keyof typeof fixtures];
-        const body = ajv.compile(message.payload as object);
-        const headers = ajv.compile(message.headers as object);
-        assertAccepts(body, fixture.payload);
-        assertAccepts(headers, fixture.headers);
-        expect(nativeErrors(message, fixture.native)).toEqual([]);
-        const profile = message[EXTENSION_KEY] as MessageProfile;
-        expect(Object.keys(profile.nativeProperties ?? {})).toEqual(Object.keys(fixture.native));
-        for (const name of Object.keys(fixture.native)) {
-          expect(profile).toHaveProperty(`nativeProperties.${name}.required`, true);
-        }
-        expect(profile.ttlSeconds).toBe(3600);
-        expect(fixture.amqpHeader.ttl).toBe(3600000);
-        expect(headers({ ...fixture.headers, MessageId: fixture.native.MessageId })).toBe(false);
-        expect(headers.errors?.map((error) => error.keyword)).toContain("additionalProperties");
-        expect(headers({ ...fixture.headers, traceId: "invalid" })).toBe(false);
-        expect(headers.errors?.map((error) => error.keyword)).toContain("format");
-        for (const key of Object.keys(fixture.native)) {
-          const schema = resolveRef(document, (message.headers as { $ref: string }).$ref) as {
-            properties: object;
-          };
-          expect(schema.properties).not.toHaveProperty(key);
-        }
-        if (name !== "OrderCommandResult") {
-          expect(body(FLOW.http.request)).toBe(false);
-          for (const { order } of INVALID) expect(body({ ...fixture.payload, order })).toBe(false);
+  it.each(NATIVE)("checks complete envelopes and application headers for %s", (_name, document) => {
+    const fixtures = {
+      PlaceOrder: FLOW.command,
+      OrderCommandResult: FLOW.result,
+      OrderPlaced: FLOW.event,
+    };
+    for (const [name, message] of Object.entries(messagesOf(document))) {
+      const fixture = fixtures[name as keyof typeof fixtures];
+      const validator = createMessageValidator(document, name);
+      const body = validator.payload;
+      const headers = validator.headers;
+      if (!headers) throw new Error(`Expected declared application headers for ${name}.`);
+      assertAccepts(body, fixture.payload);
+      assertAccepts(headers, fixture.headers);
+      const before = structuredClone(fixture);
+      const complete = validator.validate(fixture);
+      expect(complete.accepted, complete.errors.join("\n")).toBe(true);
+      expect(complete.errors).toEqual([]);
+      expect(fixture).toStrictEqual(before);
+      expect(nativeErrors(message, fixture.native)).toEqual([]);
+      const profile = message[EXTENSION_KEY] as MessageProfile;
+      expect(Object.keys(profile.nativeProperties ?? {})).toEqual(Object.keys(fixture.native));
+      for (const name of Object.keys(fixture.native)) {
+        expect(profile).toHaveProperty(`nativeProperties.${name}.required`, true);
+      }
+      expect(profile.ttlSeconds).toBe(3600);
+      expect(fixture.amqpHeader.ttl).toBe(3600000);
+      const protocolHeader = validator.validate({
+        payload: fixture.payload,
+        headers: { ...fixture.headers, MessageId: fixture.native.MessageId },
+      });
+      expect(protocolHeader.accepted).toBe(false);
+      expect(
+        protocolHeader.errors.some(
+          (error) => error.startsWith("headers") && error.includes(": additionalProperties "),
+        ),
+      ).toBe(true);
+      const invalidTrace = headers.validate({ ...fixture.headers, traceId: "invalid" });
+      expect(invalidTrace.accepted).toBe(false);
+      expect(invalidTrace.errors.some((error) => error.includes(": format "))).toBe(true);
+      for (const key of Object.keys(fixture.native)) {
+        const schema = resolveRef(document, (message.headers as { $ref: string }).$ref) as {
+          properties: object;
+        };
+        expect(schema.properties).not.toHaveProperty(key);
+      }
+      if (name !== "OrderCommandResult") {
+        expect(body.validate(FLOW.http.request).accepted).toBe(false);
+        for (const { order, keyword } of INVALID) {
+          const result = body.validate({ ...fixture.payload, order });
+          expect(result.accepted).toBe(false);
+          expect(result.errors.some((error) => error.includes(`: ${keyword} `))).toBe(true);
         }
       }
-    },
-  );
+    }
+  });
 
   it("keeps HTTP receipts and messaging envelopes distinct", () => {
     expect(HTTP_REQUEST(FLOW.command.payload)).toBe(false);
@@ -252,16 +245,19 @@ describe("Interoperability: actual native JSON instances", () => {
     );
     assertAccepts(receipt, FLOW.http.accepted);
     expect(receipt({ ...FLOW.http.accepted, state: "accepted" })).toBe(false);
-    const result = NATIVE[1][2].compile(messagesOf(PROCESSOR).OrderCommandResult.payload as object);
+    const result = createMessageValidator(PROCESSOR, "OrderCommandResult").payload;
     assertAccepts(result, {
       ...FLOW.result.payload,
       outcome: "rejected",
       reason: "Business validation failed.",
     });
-    expect(result({ ...FLOW.result.payload, outcome: "unknown" })).toBe(false);
-    const event = NATIVE[1][2].compile(messagesOf(PROCESSOR).OrderPlaced.payload as object);
-    expect(event({ ...FLOW.event.payload, occurredAt: "yesterday" })).toBe(false);
-    expect(event.errors?.map((error) => error.keyword)).toContain("format");
+    const invalidResult = result.validate({ ...FLOW.result.payload, outcome: "unknown" });
+    expect(invalidResult.accepted).toBe(false);
+    expect(invalidResult.errors.some((error) => error.includes(": enum "))).toBe(true);
+    const event = createMessageValidator(PROCESSOR, "OrderPlaced").payload;
+    const invalidEvent = event.validate({ ...FLOW.event.payload, occurredAt: "yesterday" });
+    expect(invalidEvent.accepted).toBe(false);
+    expect(invalidEvent.errors.some((error) => error.includes(": format "))).toBe(true);
     expect(INVALID).toHaveLength(8);
   });
 

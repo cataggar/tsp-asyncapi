@@ -30,14 +30,14 @@ pnpm exec vitest run test/integration/http-service-bus-example.test.ts test/inte
 git --no-pager diff -- examples/19-http-service-bus
 ```
 
-核准的最終工具鏈為 compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**，workspace
+已驗證的工具鏈為 compiler/HTTP/OpenAPI/OpenAPI3 **1.16.0**，workspace
 使用的 Protobuf/versioning 為 **0.86.0**。請用 lockfile 與含 companion API 的
 workspace package，不要猜測尚未發布的版本。輸出格式為 OpenAPI **3.1.0**、
 AsyncAPI **3.1.0**、Service Bus profile **0.1.0**；這些都不是應用程式版本。
 
-**草稿整合注意事項：** 此堆疊分支目前仍以 1.15.0/0.85.0 產生輸出。
-合併前必須 rebase 到核准的工具鏈與 companion、重新產生文件並接受獨立審查。
-完成驗證後才能移除這段說明；上述命令使用目前 checkout 的 frozen lockfile。
+Companion **尚未發布**，目前請從 workspace 編譯。它必須與含必要 extension API
+的 core 版本協調發布；發布後再固定真正可安裝的版本。Package manifest 不代表
+該版本已經發布。
 
 只編譯一個應用時，可執行 `pnpm exec tsp compile examples/19-http-service-bus`，
 或加上 `/http`、`/processor`、`/fulfillment`。訊息設定預設輸出 YAML；
@@ -48,5 +48,7 @@ baseline。現有 CI 的 Vitest 會執行此檢查。每次訊息編譯必須只
 `deployment-unverified` 警告，其他診斷會失敗；警告不會被隱藏，也不代表部署成功。
 
 `fixtures/flow.json` 分開呈現 HTTP、payload、native property 與 application
-header；`fixtures/invalid-orders.json` 每筆只有一種錯誤。測試分別使用 Draft-07
-與 OpenAPI/2020-12 validator，僅驗證此範例的 native JSON 子集，不宣稱通用相容性。
+header；`fixtures/invalid-orders.json` 每筆只有一種錯誤。訊息測試使用共用的
+`createPayloadValidator`/`createMessageValidator` Draft-07 驗證路徑，HTTP 則使用
+已審查的 OpenAPI/2020-12 helper。Native property 與 payload/application header
+分開檢查；這些 native JSON fixture 不構成通用方言或相容性證明。
