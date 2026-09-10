@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { getExtensions, isPlainObject } from "tsp-asyncapi-core";
 import { EXTENSION_KEY, getProfile, NATIVE_PROPERTY_MAPPINGS } from "tsp-azure-service-bus";
 import { ServiceBusTester } from "tsp-azure-service-bus/testing";
+import type { NativeProperties, NativeString } from "tsp-azure-service-bus/types";
 import type { AsyncAPIDocument } from "#emitter/types/index.js";
 import { channelsOf, messagesOf, operationsOf } from "../../utils/document.js";
 import { targetText } from "../../utils/diagnostics.js";
@@ -94,6 +95,10 @@ function contract(options: Options = {}): string {
     returnType = "void",
     markMessage = true,
   } = options;
+  const receiveSignature =
+    returnType === "void" ? "op execute(): Command;" : `op execute(reply: ${returnType}): Command;`;
+  const signature =
+    action === "send" ? `op execute(command: Command): ${returnType};` : receiveSignature;
   return `
     ${beforeService}
     @service(#{title: "Orders"})
@@ -109,7 +114,7 @@ function contract(options: Options = {}): string {
     interface Commands {
       @${action}
       ${decoration("operation", operation, raw)} ${operationDecorators}
-      ${action === "send" ? `op execute(command: Command): ${returnType};` : `op execute(): Command;`}
+      ${signature}
     }
     }
   `;
@@ -772,6 +777,97 @@ describe("Service Bus: typed and raw profile conformance", () => {
     expect(matching[0].message).toContain("Security scheme 'missing' is not declared.");
   });
 
+  it.each(["send", "receive"] as const)(
+    "keeps OR security groups separate for %s and its reply",
+    async (action) => {
+      const options = replyOptions();
+      const { diagnostics, doc } = await compile(
+        contract({
+          ...options,
+          action,
+          operation: {
+            ...(action === "send" ? SEND : RECEIVE),
+            authorizationRequirements: { tls: true, authentication: "entraId" },
+            nativeReply: {
+              address: "fixedChannel",
+              correlation: "requestMessageId",
+              session: "requestReplyToSessionId",
+            },
+          },
+          serviceDecorators: `${securityDefinitions}
+        @server("primary", #{host: "primary.example.invalid", protocol: "amqps"})
+        @server("responses", #{host: "responses.example.invalid", protocol: "amqps"})
+        @useSecurity("sas") @useSecurity("entra")`,
+          channelDecorators: '@useServer("primary")',
+          operationDecorators: '@replyChannel(Replies) @useSecurity("entra")',
+          extra: `${options.extra}\n@@useServer(Replies, "responses");`,
+        }),
+      );
+      expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      await expect(doc).toBeValidAsyncAPI();
+      for (const server of ["primary", "responses"]) {
+        expect(doc).toHaveProperty(`servers.${server}.security`, [
+          { $ref: "#/components/securitySchemes/sas" },
+          { $ref: "#/components/securitySchemes/entra" },
+        ]);
+      }
+      expect(doc).toHaveProperty("operations.execute.security", [
+        { $ref: "#/components/securitySchemes/entra" },
+      ]);
+      expect(doc).toHaveProperty("channels.Commands.servers", [{ $ref: "#/servers/primary" }]);
+      expect(doc).toHaveProperty("channels.Replies.servers", [{ $ref: "#/servers/responses" }]);
+    },
+  );
+
+  it.each([
+    ["server", '@useSecurity("sas")', '@useSecurity("entra")', "transport-conflict"],
+    [
+      "operation",
+      '@useSecurity("sas") @useSecurity("entra")',
+      '@useSecurity("sas")',
+      "transport-conflict",
+    ],
+    [
+      "unsupported operation",
+      '@useSecurity("entra")',
+      '@useSecurity("http")',
+      "profile-unsupported",
+    ],
+    [
+      "unknown server alternative",
+      '@useSecurity("entra") @useSecurity("missing")',
+      '@useSecurity("entra")',
+      "transport-conflict",
+    ],
+  ])(
+    "rejects a required %s security group without a usable choice",
+    async (_label, serverSecurity, operationSecurity, code) => {
+      await rejected(
+        {
+          serviceDecorators: `${securityDefinitions} @server("broker", #{host: "example.invalid", protocol: "amqps"}) ${serverSecurity}`,
+          operationDecorators: operationSecurity,
+          operation: {
+            ...SEND,
+            authorizationRequirements: { tls: true, authentication: "entraId" },
+          },
+        },
+        code,
+      );
+    },
+  );
+
+  it("does not require unsupported or differently authenticated alternatives when a compatible choice exists", async () => {
+    const { diagnostics, doc } = await compile(
+      contract({
+        serviceDecorators: `${securityDefinitions} @server("broker", #{host: "example.invalid", protocol: "amqps"}) @useSecurity("http") @useSecurity("sas") @useSecurity("entra")`,
+        operationDecorators: '@useSecurity("sas") @useSecurity("entra")',
+        operation: { ...SEND, authorizationRequirements: { tls: true, authentication: "sas" } },
+      }),
+    );
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    await expect(doc).toBeValidAsyncAPI();
+  });
+
   it("accepts explicit same-named application mirrors using encoded wire names and escaped pointers", async () => {
     const { diagnostics, doc } = await compile(
       contract({
@@ -807,6 +903,50 @@ describe("Service Bus: typed and raw profile conformance", () => {
       },
       "runtime-location",
     );
+  });
+
+  it.each([
+    "union Identifier { text: string, recursive: Identifier }",
+    "union Identifier { text: string, other: Mutual } union Mutual { number: int32, recursive: Identifier }",
+  ])("diagnoses recursive runtime-location unions instead of crashing: %s", async (extra) => {
+    const options = {
+      extra,
+      body: "id: Identifier;",
+      messageDecorators: '@correlationId("$message.payload#/id")',
+    };
+    const { matching } = await rejected(options, "runtime-location");
+    expect(matching[0].message).toContain("recursive union");
+    let control = contract(options);
+    for (const [target, profile] of [
+      ["info", INFO],
+      ["message", MESSAGE],
+      ["channel", CHANNEL],
+      ["operation", SEND],
+    ] as const) {
+      control = control.replace(decoration(target, profile), "");
+    }
+    const { diagnostics, doc } = await compile(control);
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    await expect(doc).toBeValidAsyncAPI();
+    expect(doc).toHaveProperty(
+      "components.messages.Command.correlationId.location",
+      "$message.payload#/id",
+    );
+  });
+
+  it("accepts acyclic unions sharing scalar union branches", async () => {
+    const { diagnostics, doc } = await compile(
+      contract({
+        extra: `union Shared { text: string, flag: boolean }
+        union Left { shared: Shared, number: int32 }
+        union Right { shared: Shared, literal: "fixed" }
+        union Identifier { left: Left, right: Right }`,
+        body: "id: Identifier;",
+        messageDecorators: '@correlationId("$message.payload#/id")',
+      }),
+    );
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    await expect(doc).toBeValidAsyncAPI();
   });
 
   it.each([20, 604800])(
@@ -889,7 +1029,18 @@ describe("Service Bus: typed and raw profile conformance", () => {
   });
 });
 
-function replyOptions(address: "fixedChannel" | "requestReplyTo" = "fixedChannel"): Options {
+const securityDefinitions = `
+  @securityScheme("sas", #{type: "plain"})
+  @securityScheme("entra", #{type: "oauth2", flows: #{clientCredentials: #{
+    tokenUrl: "https://identity.example.invalid/token", availableScopes: #{}
+  }}})
+  @securityScheme("http", #{type: "http", scheme: "bearer"})
+`;
+
+function replyOptions(
+  address: "fixedChannel" | "requestReplyTo" = "fixedChannel",
+  overrides: { readonly request?: NativeProperties; readonly reply?: NativeProperties } = {},
+): Options & { readonly extra: string } {
   return {
     message: {
       ...MESSAGE,
@@ -897,6 +1048,7 @@ function replyOptions(address: "fixedChannel" | "requestReplyTo" = "fixedChannel
         ...MESSAGE.nativeProperties,
         ReplyTo: { required: true },
         ReplyToSessionId: { required: true },
+        ...overrides.request,
       },
     },
     operation: {
@@ -907,7 +1059,7 @@ function replyOptions(address: "fixedChannel" | "requestReplyTo" = "fixedChannel
     operationDecorators: "@replyChannel(Replies)",
     extra: `
       @message @contentType("application/json")
-      ${decoration("message", { ...MESSAGE, nativeProperties: { ...MESSAGE.nativeProperties, CorrelationId: { required: true }, SessionId: { required: true } } })}
+      ${decoration("message", { ...MESSAGE, nativeProperties: { ...MESSAGE.nativeProperties, CorrelationId: { required: true }, SessionId: { required: true }, ...overrides.reply } })}
       model Result { id: string; }
       @dynamicChannel
       ${decoration("channel", { ...CHANNEL, entity: { kind: "queue", id: "orders.replies" }, deploymentRequirements: { sessions: true } })}
@@ -916,7 +1068,158 @@ function replyOptions(address: "fixedChannel" | "requestReplyTo" = "fixedChannel
   };
 }
 
+function copyOptions(source: NativeString, destination: NativeString, session: boolean): Options {
+  return replyOptions("fixedChannel", {
+    request: session ? { ReplyToSessionId: source } : { MessageId: source },
+    reply: session ? { SessionId: destination } : { CorrelationId: destination },
+  });
+}
+
 describe("Service Bus: replies and topology", () => {
+  it.each([
+    [
+      "correlation constants",
+      { required: true, const: "a" },
+      { required: true, const: "b" },
+      false,
+    ],
+    [
+      "correlation destination length",
+      { required: true, const: "123" },
+      { required: true, maxLength: 2 },
+      false,
+    ],
+    [
+      "correlation source length",
+      { required: true, maxLength: 2 },
+      { required: true, const: "123" },
+      false,
+    ],
+    [
+      "implicit source ID ceiling",
+      { required: true },
+      { required: true, const: "x".repeat(129) },
+      false,
+    ],
+    ["session constants", { required: true, const: "a" }, { required: true, const: "b" }, true],
+    [
+      "session destination length",
+      { required: true, const: "123" },
+      { required: true, maxLength: 2 },
+      true,
+    ],
+    [
+      "session source length",
+      { required: true, maxLength: 2 },
+      { required: true, const: "123" },
+      true,
+    ],
+  ] as const)("rejects impossible native copy %s", async (_label, source, destination, session) => {
+    const { matching } = await rejected(
+      copyOptions(source, destination, session),
+      "reply-conflict",
+    );
+    expect(matching[0].message).toContain("copy constraints");
+    expect(targetText(matching[0])).toContain("nativeReply");
+  });
+
+  it.each([
+    [
+      { required: true, const: "a" },
+      { required: true, const: "a" },
+    ],
+    [
+      { required: true, const: "123" },
+      { required: true, maxLength: 3 },
+    ],
+    [
+      { required: true, maxLength: 3 },
+      { required: true, const: "123" },
+    ],
+    [
+      { required: true, maxLength: 3 },
+      { required: true, maxLength: 2 },
+    ],
+    [{ required: true }, { required: true, const: "x".repeat(128) }],
+    [
+      { required: true, const: "\u{1f600}", maxLength: 1 },
+      { required: true, maxLength: 1 },
+    ],
+  ] as const)(
+    "accepts compatible correlation and session copy constraints %j -> %j",
+    async (source, destination) => {
+      for (const session of [false, true]) {
+        const { diagnostics, doc } = await compile(
+          contract(copyOptions(source, destination, session)),
+        );
+        expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+        await expect(doc).toBeValidAsyncAPI();
+      }
+    },
+  );
+
+  it("checks native copy constraints on processor replies, but not an undeclared copy relation", async () => {
+    const options = copyOptions(
+      { required: true, const: "a" },
+      { required: true, const: "b" },
+      false,
+    );
+    await rejected(
+      {
+        ...options,
+        action: "receive",
+        operation: {
+          ...RECEIVE,
+          nativeReply: { address: "fixedChannel", correlation: "requestMessageId" },
+        },
+      },
+      "reply-conflict",
+    );
+    const { diagnostics, doc } = await compile(contract({ ...options, operation: SEND }));
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    await expect(doc).toBeValidAsyncAPI();
+  });
+
+  it.each([false, true])(
+    "requires a jointly compatible counterpart for message variants (crossed sessions=%s)",
+    async (crossed) => {
+      const options = replyOptions("fixedChannel", {
+        request: {
+          MessageId: { required: true, const: "a" },
+          ReplyToSessionId: { required: true, const: "a" },
+        },
+        reply: {
+          CorrelationId: { required: true, const: "a" },
+          SessionId: { required: true, const: crossed ? "b" : "a" },
+        },
+      });
+      const source = contract({
+        ...options,
+        returnType: "Result | ResultB",
+        extra: `${options.extra}
+        @message @contentType("application/json")
+        ${decoration("message", { ...MESSAGE, nativeProperties: { ...MESSAGE.nativeProperties, MessageId: { required: true, const: "b" }, ReplyToSessionId: { required: true, const: "b" } } })}
+        model CommandB { id: string; }
+        @message @contentType("application/json")
+        ${decoration("message", { ...MESSAGE, nativeProperties: { ...MESSAGE.nativeProperties, CorrelationId: { required: true, const: "b" }, SessionId: { required: true, const: crossed ? "a" : "b" } } })}
+        model ResultB { id: string; }
+      `,
+      }).replace("command: Command", "command: Command | CommandB");
+      const { diagnostics, doc } = await compile(source);
+      if (crossed) {
+        expect(
+          diagnostics.some(
+            (diagnostic) => diagnostic.code === "tsp-azure-service-bus/reply-conflict",
+          ),
+        ).toBe(true);
+        expect(doc).toBeUndefined();
+      } else {
+        expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+        await expect(doc).toBeValidAsyncAPI();
+      }
+    },
+  );
+
   it.each(["fixedChannel", "requestReplyTo"] as const)(
     "preserves standard reply refs with native %s obligations",
     async (address) => {
@@ -936,7 +1239,7 @@ describe("Service Bus: replies and topology", () => {
     await rejected({ ...replyOptions(), message: MESSAGE }, "native-metadata");
     const options = replyOptions();
     await rejected(
-      { ...options, extra: options.extra?.replace("`sessions`: true", "`sessions`: false") },
+      { ...options, extra: options.extra.replace("`sessions`: true", "`sessions`: false") },
       "reply-conflict",
     );
     await rejected(
@@ -953,7 +1256,7 @@ describe("Service Bus: replies and topology", () => {
     await rejected(
       {
         ...options,
-        extra: options.extra?.replace("@dynamicChannel", '@channel("composed.replies")'),
+        extra: options.extra.replace("@dynamicChannel", '@channel("composed.replies")'),
       },
       "reply-conflict",
     );
@@ -990,7 +1293,7 @@ describe("Service Bus: replies and topology", () => {
     const options = replyOptions();
     const source = contract({
       ...options,
-      extra: options.extra?.replace(
+      extra: options.extra.replace(
         "`sessions`: true",
         '`sessions`: true, `partitioning`: "disabled", `duplicateDetection`: #{ required: true, scope: "messageId" }',
       ),

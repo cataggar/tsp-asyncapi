@@ -16,8 +16,9 @@ AsyncAPI 官方 binding。
 
 ## 相容性與發佈
 
-使用 Node **24**、pnpm **11.21.0**、compiler **1.15.0**（peer `~1.15.0`）
-及 `@typespec/versioning` **0.85.0**。versioning 相依透過公開 API 偵測不支援
+開發使用 Node **24**（套件最低 **22**）、pnpm **11.21.0**、
+compiler **1.16.0**（刻意限制 minor 的 peer `~1.16.0`，開發相依固定版本）
+及 `@typespec/versioning` **0.86.0**。versioning 相依透過公開 API 偵測不支援
 的版本化／dependency-mutated 程式，不代表已支援版本化 profile。
 
 初始 package manifest **尚未發佈**。此 library 必須與新增公開通用 extension
@@ -203,6 +204,8 @@ TypeSpec object literal 的原生限制欄位須寫為 `` `const` ``，因為 `c
 `$message.header#/CorrelationId` 或 `$message.properties`。只有應用程式
 實際寫入並檢查、必填且為 scalar 的 payload／header 欄位，才能使用標準
 correlation location。
+Runtime location 不支援遞迴 union，會回報 `runtime-location`；
+共用 scalar 分支但沒有循環的 union 仍有效。
 
 ## Receive policy
 
@@ -310,6 +313,13 @@ profile `0.1.0` **僅支援 queue reply destination**：
 標準 message `correlationId`。每則 reply 自己的 MessageId 是新的邏輯訊息
 identity，不是 request 的 ID。
 
+複製的原生限制必須容許共同值：不同的 constant，或 constant 超過任一端的
+長度限制，會回報 `reply-conflict`。來源也受規範的 identifier 上限約束。
+每個宣告的 request／reply message variant 都須有同時符合 correlation 與
+session 複製限制的對應 variant。沒有 constant 且長度範圍重疊時，不會只因
+一端範圍較寬就拒絕。這只檢查已知不可能的複製，不是通用 schema inclusion
+或 runtime 證明；應用程式仍須選取相容的 reply 並檢查實際複製值。
+
 ## Transport、composition 與限制
 
 必須使用 TLS 上的 AMQP 1.0。`amqp1` binding 應省略（建議）或為 **`{}`**，
@@ -323,9 +333,16 @@ Send／Listen 權限取決於主要與反向 reply 的方向。Composition 提�
 host、catalog 關係、部署能力證據、身分與角色指派。不可嵌入憑證、
 為 AMQP CBS 捏造 HTTP bearer header，或把 RBAC role 當成 OAuth scope。
 標準 security scheme 僅在確實描述實際流程時使用。
-第一版接受 SASL `plain` 或真實的 OAuth2 `clientCredentials` flow，
-拒絕不相容的 HTTP／API-key scheme，並診斷與明確 Entra／SAS requirement
-的矛盾。不會取得 token，也不證明應用程式已實作所描述的 OAuth／CBS 流程。
+Security array 是 **OR 替代選項**。Operation 的 security group 是額外需求，
+不會取代 server group；每個非空 group 都須提供符合明確 Entra／SAS requirement
+的受支援選項。Core 將 service namespace 的 security array 套用到每個宣告的
+server，也包含 reply 使用的 server。省略或空 array 代表未指定。
+第一版只有 SASL `plain` 或真實的 OAuth2 `clientCredentials` flow 能滿足需求。
+其他驗證方式或不受支援的替代選項，不會使已有的相容選項失效，
+但不存在的 scheme 名稱仍是錯誤。Group 完全沒有受支援選項會回報
+`profile-unsupported`；沒有符合宣告驗證方式的選項則回報 `transport-conflict`。
+這不會取得 token，也不證明已實作 OAuth／CBS 流程、connection／operation
+security 或 Send／Listen 權限。
 
 初期支援**未版本化、單一 service entrypoint**。在 scoped snapshot
 integration 能驗證各自選取的 application graph 之前，source validation

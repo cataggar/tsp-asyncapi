@@ -24,6 +24,7 @@ import {
   isHeader,
 } from "tsp-asyncapi-core";
 import { problem } from "./state.js";
+import { nativeLengthAllows } from "./profile.js";
 import type { MessageProfile, NativeString } from "./types.js";
 
 function scalarChain(type: Scalar): Scalar[] {
@@ -134,10 +135,17 @@ function validateHeaders(program: Program, message: Model): void {
   }
 }
 
-function scalarValue(program: Program, type: Type): boolean {
+function scalarValue(program: Program, type: Type, inProgress = new Set<Type>()): boolean {
   if (["String", "Number", "Boolean", "Enum", "EnumMember"].includes(type.kind)) return true;
-  if (type.kind === "Union")
-    return [...type.variants.values()].every((variant) => scalarValue(program, variant.type));
+  if (type.kind === "Union") {
+    if (inProgress.has(type)) return false;
+    inProgress.add(type);
+    const scalar = [...type.variants.values()].every((variant) =>
+      scalarValue(program, variant.type, inProgress),
+    );
+    inProgress.delete(type);
+    return scalar;
+  }
   if (type.kind !== "Scalar") return false;
   return (
     isStringType(program, type) ||
@@ -197,18 +205,14 @@ export function validateLocation(
       program,
       target,
       "runtime-location",
-      `Location '${location}' must name an actual required scalar application property or payload field on '${message.name}', not native AMQP properties.`,
+      `Location '${location}' must name an actual required scalar application property or payload field on '${message.name}', not native AMQP properties or an unsupported recursive union.`,
     );
   }
 }
 
 export function validateMessage(program: Program, message: Model, profile: MessageProfile): void {
   for (const [name, config] of Object.entries<NativeString>({ ...profile.nativeProperties })) {
-    if (
-      config.const !== undefined &&
-      config.maxLength !== undefined &&
-      Array.from(config.const).length > config.maxLength
-    ) {
+    if (config.const !== undefined && !nativeLengthAllows(config, config.const)) {
       problem(
         program,
         message,

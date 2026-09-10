@@ -11,8 +11,9 @@ provisioning tool, or official Azure/AsyncAPI binding.
 ## Compatibility and release status
 
 The initial package manifest is **unpublished**. Develop from this workspace
-using Node **24**, pnpm **11.21.0**, TypeSpec **1.15.0**, and
-`@typespec/versioning` **0.85.0**. The compiler peer range is `~1.15.0`.
+using Node **24** (package minimum **22**), pnpm **11.21.0**, TypeSpec **1.16.0**,
+and `@typespec/versioning` **0.86.0**. The compiler peer range deliberately stays
+within the tested minor, `~1.16.0`, with an exact development dependency.
 
 Release this package together with the core minor that introduces the public
 extension writer and binding reader. Changesets updates the `workspace:^` core

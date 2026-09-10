@@ -3,7 +3,7 @@ import { Ajv } from "ajv";
 import type { ErrorObject, ValidateFunction } from "ajv";
 import schema from "../schema/0.1.0.json" with { type: "json" };
 import { reportDiagnostic, type DiagnosticCode } from "./lib.js";
-import type { ServiceBusProfile } from "./types.js";
+import type { NativeId, NativeString, ServiceBusProfile } from "./types.js";
 
 /** The extension version, independent of package/application versions. @public */
 export const PROFILE_VERSION = "0.1.0";
@@ -28,6 +28,27 @@ const validators: Record<ServiceBusProfile["target"], ValidateFunction<ServiceBu
   message: ajv.compile({ $ref: `${schema.$id}#/definitions/message` }),
   operation: ajv.compile({ $ref: `${schema.$id}#/definitions/operation` }),
 };
+const nativeId = ajv.compile<NativeId>({ $ref: `${schema.$id}#/definitions/nativeId` });
+
+export function nativeLengthAllows(config: NativeString, value: string): boolean {
+  return config.maxLength === undefined || Array.from(value).length <= config.maxLength;
+}
+
+export function nativeCopyCompatible(source: NativeId, destination: NativeString): boolean {
+  if (
+    source.const !== undefined &&
+    destination.const !== undefined &&
+    source.const !== destination.const
+  )
+    return false;
+  const value = source.const ?? destination.const;
+  if (value === undefined) return true;
+  return (
+    nativeId({ ...source, const: value }) &&
+    nativeLengthAllows(source, value) &&
+    nativeLengthAllows(destination, value)
+  );
+}
 
 function errorCode(error: ErrorObject): DiagnosticCode {
   const path = error.instancePath;

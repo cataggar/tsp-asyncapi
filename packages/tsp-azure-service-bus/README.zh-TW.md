@@ -11,8 +11,9 @@ runtime、佈建工具，也不是 Azure 或 AsyncAPI 官方 binding。
 ## 相容性與發佈狀態
 
 初始 package manifest **尚未發佈**。請在此 workspace 使用 Node **24**、
-pnpm **11.21.0**、TypeSpec **1.15.0** 與 `@typespec/versioning` **0.85.0**。
-compiler peer range 為 `~1.15.0`。
+pnpm **11.21.0**、TypeSpec **1.16.0** 與 `@typespec/versioning` **0.86.0**。
+套件最低 Node 版本為 **22**；compiler peer range 刻意限制在已測試的 minor
+`~1.16.0`，開發相依則固定精確版本。
 
 此套件必須與新增公開 extension writer 與 binding reader 的 core minor
 一同發佈。Changesets 會在打包前更新 `workspace:^` core peer/development

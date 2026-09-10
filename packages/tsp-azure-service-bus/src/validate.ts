@@ -26,7 +26,7 @@ import {
   listMessages,
   type ChannelTarget,
 } from "tsp-asyncapi-core";
-import { checkProfile, EXTENSION_KEY } from "./profile.js";
+import { checkProfile, EXTENSION_KEY, nativeCopyCompatible } from "./profile.js";
 import { getProfile, problem, read, records, write } from "./state.js";
 import { validateLocation, validateMessage } from "./message-validation.js";
 import { validateSecurity } from "./security-validation.js";
@@ -492,6 +492,64 @@ function validateReply(
   for (const model of reply) {
     requireNative(program, model, "CorrelationId", "Native request/reply correlation");
     if (native.session) requireNative(program, model, "SessionId", "Native session reply");
+  }
+  validateReplyCopies(program, operation, native, request, reply);
+}
+
+function compatibleReply(
+  program: Program,
+  native: NativeReply,
+  request: Model,
+  reply: Model,
+): boolean {
+  const source = messageProfile(program, request)?.nativeProperties;
+  const destination = messageProfile(program, reply)?.nativeProperties;
+  // Missing declarations are diagnosed by requireNative before this relation check.
+  const correlation =
+    !source?.MessageId ||
+    !destination?.CorrelationId ||
+    nativeCopyCompatible(source.MessageId, destination.CorrelationId);
+  const session =
+    !native.session ||
+    !source?.ReplyToSessionId ||
+    !destination?.SessionId ||
+    nativeCopyCompatible(source.ReplyToSessionId, destination.SessionId);
+  return correlation && session;
+}
+
+function validateReplyCopies(
+  program: Program,
+  operation: Operation,
+  native: NativeReply,
+  requests: readonly Model[],
+  replies: readonly Model[],
+): void {
+  const compatibleRequests = new Set<Model>(),
+    compatibleReplies = new Set<Model>();
+  for (const request of requests) {
+    for (const reply of replies) {
+      if (!compatibleReply(program, native, request, reply)) continue;
+      compatibleRequests.add(request);
+      compatibleReplies.add(reply);
+    }
+  }
+  const relation = native.session
+    ? "MessageId/CorrelationId and ReplyToSessionId/SessionId"
+    : "MessageId/CorrelationId";
+  for (const [models, compatible, counterparts] of [
+    [requests, compatibleRequests, replies],
+    [replies, compatibleReplies, requests],
+  ] as const) {
+    for (const model of models) {
+      if (!compatible.has(model)) {
+        problem(
+          program,
+          operation,
+          "reply-conflict",
+          `'${model.name}' has no compatible counterpart among [${counterparts.map((other) => other.name).join(", ")}] for native ${relation} copy constraints.`,
+        );
+      }
+    }
   }
 }
 

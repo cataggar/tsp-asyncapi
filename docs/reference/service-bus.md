@@ -16,8 +16,9 @@ official Azure or AsyncAPI binding.
 
 ## Compatibility and release
 
-Use Node **24**, pnpm **11.21.0**, compiler **1.15.0** (peer `~1.15.0`), and
-`@typespec/versioning` **0.85.0**. The versioning dependency detects unsupported
+Use Node **24** for development (package minimum **22**), pnpm **11.21.0**,
+compiler **1.16.0** (intentional strict-minor peer `~1.16.0`, exact development
+dependency), and `@typespec/versioning` **0.86.0**. The versioning dependency detects unsupported
 versioned/dependency-mutated programs through public APIs; it does not enable
 versioned profile support.
 
@@ -210,6 +211,8 @@ property. Native-only correlation has no standard header pointer: do not
 manufacture `$message.header#/CorrelationId` or `$message.properties`. Use
 standard correlation locations only for actual required scalar payload/header
 fields that the application writes and checks.
+Recursive unions at a runtime location are unsupported and produce
+`runtime-location`; shared acyclic scalar unions remain valid.
 
 ## Receive policies
 
@@ -318,6 +321,15 @@ Do not add standard `reply.address` when `nativeReply` is present. For native-on
 metadata, omit standard message `correlationId` as well. Each reply's own
 MessageId is a new logical-message identity, not the request's ID.
 
+Copied native constraints must admit a common value: conflicting constants or
+a constant exceeding either side's length constraint produce `reply-conflict`.
+The normative identifier ceiling also applies to the source. Each declared
+request/reply message variant must have a counterpart satisfying correlation
+and session copy constraints together. Overlapping length ranges without
+constants are not rejected merely because one range is wider. This is a check
+for known impossible copies, not a universal schema-inclusion or runtime proof;
+applications still select compatible replies and validate actual copied values.
+
 ## Transport, composition, and limits
 
 AMQP 1.0 over TLS is mandatory. Bindings named `amqp1` must be absent
@@ -332,10 +344,18 @@ Composition supplies addresses, hosts, logical catalog resolution, deployment
 capability evidence, identities, and role assignments. Do not embed credentials,
 invent HTTP bearer headers for AMQP CBS, or express RBAC roles as OAuth scopes.
 Standard security schemes remain appropriate only when they describe a real flow.
-The initial validator accepts SASL `plain` or an actual OAuth2
-`clientCredentials` flow, rejects incompatible HTTP/API-key schemes, and reports
-contradictions with explicit Entra/SAS requirements. It does not acquire tokens
-or establish that the application's described OAuth/CBS flow is implemented.
+Security arrays are **OR alternatives**. An operation's security group is
+additional to, not a replacement for, the server group; each nonempty group
+must offer a supported choice compatible with an explicit Entra/SAS requirement.
+The core applies the service namespace's security array to every declared server,
+including servers used for replies. Empty/absent arrays leave security unspecified.
+Only SASL `plain` or an actual OAuth2 `clientCredentials` flow can satisfy the
+initial profile. A differently authenticated or unsupported alternative does not
+invalidate another compatible choice, but unresolved scheme names remain errors.
+A group with no supported choice produces `profile-unsupported`; one with no
+choice matching the declared authentication produces `transport-conflict`.
+This does not acquire tokens or establish that the described OAuth/CBS flow,
+connection security, operation security, or Send/Listen permissions are implemented.
 
 Initial support is **unversioned, single-service entrypoints**. Source validation
 rejects versioned, dependency-mutated, or multiple-service profile use until

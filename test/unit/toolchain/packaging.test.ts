@@ -53,8 +53,12 @@ describe("Unit: the package check", () => {
 describe("Unit: the declared dependencies", () => {
   it.each(PACKAGES)("aligns %s with the supported compiler and Node baseline", async (name) => {
     const manifest = await manifestOf(`packages/${name}/package.json`);
-    expect(manifest.peerDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
-    expect(manifest.devDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
+    const companion = name === "tsp-azure-service-bus";
+    expect(manifest.peerDependencies?.["@typespec/compiler"]).toBe(
+      companion ? "~1.16.0" : "^1.16.0",
+    );
+    expect(manifest.devDependencies?.["@typespec/compiler"]).toBe(companion ? "1.16.0" : "^1.16.0");
+    if (companion) expect(manifest.dependencies?.["@typespec/versioning"]).toBe("0.86.0");
     expect(manifest.engines?.node).toBe(">=22.0.0");
   });
 
