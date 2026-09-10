@@ -230,6 +230,117 @@ describe("OpenAPI document-local reference controls", () => {
 });
 
 describe("OpenAPI instance validator isolation", () => {
+  it.each(["example", "x-note"])(
+    "does not index a schema identifier inside %s annotation data",
+    (annotation) => {
+      const document = documentWith({
+        type: "string",
+        [annotation]: { $id: SCHEMA, type: "number" },
+      });
+      const original = structuredClone(document);
+      expect(validateOpenAPI31Document(document)).toBeNull();
+      const validate = compileOpenAPI31Schema(document, SCHEMA);
+      expect(validate("expected")).toBe(true);
+      expect(validate(42)).toBe(false);
+      expect(document).toStrictEqual(original);
+    },
+  );
+
+  it.each(["example", "x-note"])(
+    "does not validate anchors inside nested %s annotation data",
+    (annotation) => {
+      const data = { nested: { $anchor: "arbitrary data, not an anchor" } };
+      const document = documentWith({
+        type: "object",
+        properties: { value: { type: "string", [annotation]: data } },
+      });
+      const original = structuredClone(document);
+      expect(validateOpenAPI31Document(document)).toBeNull();
+      const validate = compileOpenAPI31Schema(document, SCHEMA);
+      expect(validate({ value: "expected" })).toBe(true);
+      expect(validate({ value: 42 })).toBe(false);
+      expect(document).toStrictEqual(original);
+    },
+  );
+
+  it("excludes document-level annotation identifiers from the compilation registry", () => {
+    const document = {
+      ...documentWith({ type: "string" }),
+      "x-note": { nested: { $id: SCHEMA, type: "number" } },
+    };
+    const original = structuredClone(document);
+    expect(validateOpenAPI31Document(document)).toBeNull();
+    const validate = compileOpenAPI31Schema(document, SCHEMA);
+    expect(validate("expected")).toBe(true);
+    expect(validate(42)).toBe(false);
+    expect(document).toStrictEqual(original);
+  });
+
+  it.each(["const", "enum"])("preserves literal assertion data under %s", (keyword) => {
+    const literal = { $id: SCHEMA, $anchor: "literal data", nullable: true };
+    const document = documentWith({
+      [keyword]: keyword === "enum" ? [literal] : literal,
+    });
+    const original = structuredClone(document);
+    const validate = compileOpenAPI31Schema(document, SCHEMA);
+    expect(validate(literal)).toBe(true);
+    expect(validate({ ...literal, nullable: false })).toBe(false);
+    expect(document).toStrictEqual(original);
+  });
+
+  it("still rejects identifiers on actual nested schemas", () => {
+    for (const keyword of ["$id", "$anchor"]) {
+      expect(
+        validateOpenAPI31Document(
+          documentWith({
+            type: "object",
+            properties: { value: { [keyword]: "unsupported", type: "string" } },
+          }),
+        ),
+      ).toMatch(/Unsupported schema resource keyword/);
+    }
+  });
+
+  it.each([
+    [{ type: "string", nullable: true }, false, true],
+    [{ type: "null", nullable: false }, true, false],
+    [{ type: ["string", "null"], nullable: false }, true, true],
+    [{ anyOf: [{ type: "string" }, { type: "null" }], nullable: false }, true, true],
+    [{ type: "string", nullable: { arbitrary: "annotation" } }, false, true],
+  ])(
+    "uses only OpenAPI 3.1 assertions to decide null acceptance",
+    (schema, acceptsNull, acceptsString) => {
+      const document = documentWith(schema);
+      const original = structuredClone(document);
+      expect(validateOpenAPI31Document(document)).toBeNull();
+      const validate = compileOpenAPI31Schema(document, SCHEMA);
+      expect(validate(null)).toBe(acceptsNull);
+      expect(validate("expected")).toBe(acceptsString);
+      expect(validate(42)).toBe(false);
+      expect(document).toStrictEqual(original);
+    },
+  );
+
+  it("preserves properties whose names look like annotation keywords", () => {
+    const document = documentWith({
+      type: "object",
+      properties: {
+        nullable: { type: "string", nullable: true },
+        example: { type: "string" },
+        "x-note": { type: "string" },
+      },
+      required: ["nullable", "example", "x-note"],
+    });
+    const original = structuredClone(document);
+    const validate = compileOpenAPI31Schema(document, SCHEMA);
+    const valid = { nullable: "expected", example: "expected", "x-note": "expected" };
+    expect(validate(valid)).toBe(true);
+    expect(validate({ ...valid, nullable: null })).toBe(false);
+    expect(validate({ ...valid, example: 42 })).toBe(false);
+    expect(validate({ ...valid, "x-note": 42 })).toBe(false);
+    expect(document).toStrictEqual(original);
+  });
+
   it("keeps component registries separate between documents", () => {
     const strings = compileOpenAPI31Schema(documentWith({ type: "string" }), SCHEMA);
     const numbers = compileOpenAPI31Schema(documentWith({ type: "number" }), SCHEMA);

@@ -73,8 +73,19 @@ following RFC 9110 token, quoted-string, and wildcard rules.
 Document/schema validation does **not** validate example/default values as instances.
 Use the separate instance validator for payload acceptance. Data inside examples,
 defaults, and specification extensions is not walked as a reference graph. Unknown
-schema annotations do not acquire custom runtime semantics. This is not a complete
-OpenAPI semantic linter: for example, link `operationRef`/discriminator mapping
+schema annotations do not acquire custom runtime semantics. Instance compilation
+uses a separate representation containing supported assertions and schema children
+at their original document-local paths. It excludes annotation data from Ajv's
+identifier indexing, so an example or extension containing `$id` or `$anchor` cannot
+replace a schema or cause an anchor error. Literal `const`/`enum` values and property
+names remain intact, and the input document is never mutated.
+
+The OpenAPI 3.0 `nullable` keyword is treated as annotation data, not an assertion:
+`{type: "string", nullable: true}` rejects null, while
+`{type: "null", nullable: false}` accepts it. OpenAPI 3.1 null acceptance comes from
+the actual `type` or schema alternatives, such as `type: ["string", "null"]`.
+
+This is not a complete OpenAPI semantic linter: for example, link `operationRef`/discriminator mapping
 semantics, operation-ID uniqueness, and agreement between a path template and
 parameters are outside this helper.
 

@@ -29,6 +29,30 @@ const SINGLE_SCHEMAS = [
   "else",
   "contentSchema",
 ];
+const ASSERTION_VALUES = [
+  "$ref",
+  "type",
+  "enum",
+  "const",
+  "multipleOf",
+  "maximum",
+  "exclusiveMaximum",
+  "minimum",
+  "exclusiveMinimum",
+  "maxLength",
+  "minLength",
+  "pattern",
+  "format",
+  "maxItems",
+  "minItems",
+  "uniqueItems",
+  "maxContains",
+  "minContains",
+  "maxProperties",
+  "minProperties",
+  "required",
+  "dependentRequired",
+];
 
 function object(value: unknown): value is ObjectValue {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -170,6 +194,56 @@ function inspectSchema(
   }
 }
 
+/**
+ * Ajv indexes identifiers even in unknown annotation objects and implements
+ * OpenAPI 3.0 nullable. Give it only supported assertions and schema children.
+ * Literal const/enum data stays intact; property and $defs names are not keywords.
+ */
+// eslint-disable-next-line sonarjs/function-return-type -- JSON Schema includes boolean schemas.
+function compilationSchema(schema: Schema): Schema {
+  if (typeof schema === "boolean") return schema;
+  const result: ObjectValue = {};
+  for (const key of ASSERTION_VALUES) {
+    if (Object.hasOwn(schema, key)) result[key] = structuredClone(schema[key]);
+  }
+  for (const key of MAP_SCHEMAS) {
+    const entries = schema[key];
+    if (object(entries)) {
+      result[key] = Object.fromEntries(
+        Object.entries(entries).map(([name, child]) => [name, compilationSchema(child as Schema)]),
+      );
+    }
+  }
+  for (const key of ARRAY_SCHEMAS) {
+    const entries = schema[key];
+    if (Array.isArray(entries)) {
+      result[key] = entries.map((child: Schema) => compilationSchema(child));
+    }
+  }
+  for (const key of SINGLE_SCHEMAS) {
+    if (Object.hasOwn(schema, key)) result[key] = compilationSchema(schema[key] as Schema);
+  }
+  return result;
+}
+
+/** Preserve document-local schema paths, without registering the document's data. */
+function compilationDocument(roots: ReadonlyMap<string, Schema>): ObjectValue {
+  const result = Object.create(null) as ObjectValue;
+  for (const [path, schema] of roots) {
+    const parts = path
+      .slice(1)
+      .split("/")
+      .map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"));
+    let parent = result;
+    for (const part of parts.slice(0, -1)) {
+      if (!Object.hasOwn(parent, part)) parent[part] = Object.create(null) as ObjectValue;
+      parent = parent[part] as ObjectValue;
+    }
+    parent[parts[parts.length - 1]] = compilationSchema(schema);
+  }
+  return result;
+}
+
 function prepare(document: unknown): { ajv: Ajv2020; schemas: Set<string> } {
   const ajv = createAjv();
   const roots = new Map<string, Schema>();
@@ -248,7 +322,7 @@ function prepare(document: unknown): { ajv: Ajv2020; schemas: Set<string> } {
       throw new Error(`Unresolved security scheme: ${name}`);
     }
   }
-  ajv.addSchema(document, DOCUMENT_ID);
+  ajv.addSchema(compilationDocument(roots), DOCUMENT_ID);
   for (const ref of schemas) {
     // This checks compilability (including invalid regexes), not instance acceptance.
     ajv.getSchema(`${DOCUMENT_ID}${ref}`);
