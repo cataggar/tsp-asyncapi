@@ -121,6 +121,15 @@ export default defineConfig({
               { text: "Linter", link: "/reference/linter" },
             ],
           },
+          {
+            text: "Design Proposals",
+            items: [
+              {
+                text: "Azure Service Bus Profile",
+                link: "/design/azure-service-bus-profile",
+              },
+            ],
+          },
         ],
         editLink: {
           pattern: "https://github.com/marvin-hsu/tsp-asyncapi/edit/main/docs/:path",
@@ -212,6 +221,15 @@ export default defineConfig({
               { text: "可重用元件", link: "/zh-tw/reference/reusable-components" },
               { text: "診斷訊息", link: "/zh-tw/reference/diagnostics" },
               { text: "Linter 規則", link: "/zh-tw/reference/linter" },
+            ],
+          },
+          {
+            text: "設計提案",
+            items: [
+              {
+                text: "Azure Service Bus profile",
+                link: "/zh-tw/design/azure-service-bus-profile",
+              },
             ],
           },
         ],
