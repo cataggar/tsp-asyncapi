@@ -1,0 +1,70 @@
+[
+  {
+    "name": "missing order ID",
+    "keyword": "required",
+    "order": { "customerId": "customer-1", "items": [{ "sku": "widget-1", "quantity": 2 }] }
+  },
+  {
+    "name": "invalid UUID",
+    "keyword": "format",
+    "order": {
+      "orderId": "not-a-uuid",
+      "customerId": "customer-1",
+      "items": [{ "sku": "widget-1", "quantity": 2 }]
+    }
+  },
+  {
+    "name": "empty customer",
+    "keyword": "minLength",
+    "order": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "",
+      "items": [{ "sku": "widget-1", "quantity": 2 }]
+    }
+  },
+  {
+    "name": "empty item list",
+    "keyword": "minItems",
+    "order": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "customer-1",
+      "items": []
+    }
+  },
+  {
+    "name": "empty SKU",
+    "keyword": "minLength",
+    "order": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "customer-1",
+      "items": [{ "sku": "", "quantity": 2 }]
+    }
+  },
+  {
+    "name": "zero quantity",
+    "keyword": "minimum",
+    "order": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "customer-1",
+      "items": [{ "sku": "widget-1", "quantity": 0 }]
+    }
+  },
+  {
+    "name": "fractional quantity",
+    "keyword": "type",
+    "order": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "customer-1",
+      "items": [{ "sku": "widget-1", "quantity": 1.5 }]
+    }
+  },
+  {
+    "name": "quantity over contract limit",
+    "keyword": "maximum",
+    "order": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "customer-1",
+      "items": [{ "sku": "widget-1", "quantity": 1001 }]
+    }
+  }
+]

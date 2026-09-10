@@ -190,7 +190,7 @@ components:
 
 ## 範例
 
-[`examples/`](./examples/) 底下有十八個完整範例，每個都附 TypeSpec 原始碼與 emitter 實際寫出的輸出。本專案實作的每個通訊協定都至少出現在一個範例裡。
+[`examples/`](./examples/) 底下有十九個完整範例，每個都附 TypeSpec 原始碼與 emitter 實際寫出的輸出。本專案實作的每個通訊協定都至少出現在一個範例裡。
 
 | 範例                                                                | 內容                                        |
 | ------------------------------------------------------------------- | ------------------------------------------- |
@@ -212,6 +212,7 @@ components:
 | [Protobuf payloads](./examples/16-protobuf-payloads/)               | 兩個 Protobuf package，同時輸出 `.proto`    |
 | [Avro schemas](./examples/17-avro-schemas/)                         | 只產出 `.avsc`，沒有 AsyncAPI 文件          |
 | [Avro payloads](./examples/18-avro-payloads/)                       | 兩個 Avro record，同時輸出 `.avsc`          |
+| [HTTP and Service Bus](./examples/19-http-service-bus/)             | 共用 Order，區分 HTTP 與訊息封裝            |
 
 更詳細的說明見[範例頁](https://tsp-asyncapi.marvinhsu.dev/zh-tw/guide/examples)。
 

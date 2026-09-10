@@ -29,8 +29,16 @@ Every directory under [`examples/`](https://github.com/marvin-hsu/tsp-asyncapi/t
 | [Protobuf payloads](https://github.com/marvin-hsu/tsp-asyncapi/tree/main/examples/16-protobuf-payloads)               | Two Protobuf packages over RabbitMQ, with the `.proto` files emitted next to the document.                                          |
 | [Avro schemas](https://github.com/marvin-hsu/tsp-asyncapi/tree/main/examples/17-avro-schemas)                         | One order domain written as Avro schema files by `tsp-avro`. No AsyncAPI document.                                                  |
 | [Avro payloads](https://github.com/marvin-hsu/tsp-asyncapi/tree/main/examples/18-avro-payloads)                       | Two Avro records over Kafka, with the `.avsc` files emitted next to the document.                                                   |
+| [HTTP and Service Bus](https://github.com/cataggar/tsp-asyncapi/tree/main/examples/19-http-service-bus)               | Shared Order, distinct envelopes, four application entrypoints, and eight OpenAPI/AsyncAPI YAML/JSON documents.                     |
 
 ## Running one
+
+The [HTTP and Service Bus example](./http-service-bus) in
+[`19-http-service-bus`](https://github.com/cataggar/tsp-asyncapi/tree/main/examples/19-http-service-bus)
+adds four independent entrypoints sharing one Order domain: HTTP, gateway messaging,
+processor, and fulfillment. Run `pnpm examples:interop` from the repository root
+for all eight YAML/JSON documents, or `pnpm examples:interop:check` to verify them.
+Compiling its root directory alone emits gateway AsyncAPI YAML.
 
 Clone the repository, then compile inside the directory you want:
 

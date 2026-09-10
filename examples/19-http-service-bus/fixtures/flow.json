@@ -1,0 +1,86 @@
+{
+  "http": {
+    "idempotencyKey": "11111111-1111-4111-8111-111111111111",
+    "request": {
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "customerId": "customer-1",
+      "items": [{ "sku": "widget-1", "quantity": 2 }]
+    },
+    "accepted": {
+      "commandId": "11111111-1111-4111-8111-111111111111",
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "state": "pending"
+    }
+  },
+  "command": {
+    "native": {
+      "MessageId": "11111111-1111-4111-8111-111111111111",
+      "CorrelationId": "11111111-1111-4111-8111-111111111111",
+      "SessionId": "22222222-2222-4222-8222-222222222222",
+      "ReplyTo": "example-order-replies",
+      "ReplyToSessionId": "11111111-1111-4111-8111-111111111111",
+      "Subject": "order.place",
+      "ContentType": "application/json"
+    },
+    "amqpHeader": { "ttl": 3600000 },
+    "headers": {
+      "traceId": "33333333-3333-4333-8333-333333333333",
+      "contractVersion": "1.0"
+    },
+    "payload": {
+      "commandId": "11111111-1111-4111-8111-111111111111",
+      "expiresAt": "2030-01-01T01:00:00Z",
+      "order": {
+        "orderId": "22222222-2222-4222-8222-222222222222",
+        "customerId": "customer-1",
+        "items": [{ "sku": "widget-1", "quantity": 2 }]
+      }
+    }
+  },
+  "result": {
+    "native": {
+      "MessageId": "44444444-4444-4444-8444-444444444444",
+      "CorrelationId": "11111111-1111-4111-8111-111111111111",
+      "SessionId": "11111111-1111-4111-8111-111111111111",
+      "Subject": "order.result",
+      "ContentType": "application/json"
+    },
+    "amqpHeader": { "ttl": 3600000 },
+    "headers": {
+      "traceId": "33333333-3333-4333-8333-333333333333",
+      "contractVersion": "1.0",
+      "causationId": "11111111-1111-4111-8111-111111111111"
+    },
+    "payload": {
+      "commandId": "11111111-1111-4111-8111-111111111111",
+      "orderId": "22222222-2222-4222-8222-222222222222",
+      "outcome": "accepted",
+      "expiresAt": "2030-01-01T01:00:00Z"
+    }
+  },
+  "event": {
+    "native": {
+      "MessageId": "55555555-5555-4555-8555-555555555555",
+      "CorrelationId": "11111111-1111-4111-8111-111111111111",
+      "SessionId": "22222222-2222-4222-8222-222222222222",
+      "Subject": "order.placed",
+      "ContentType": "application/json"
+    },
+    "amqpHeader": { "ttl": 3600000 },
+    "headers": {
+      "traceId": "33333333-3333-4333-8333-333333333333",
+      "contractVersion": "1.0",
+      "causationId": "11111111-1111-4111-8111-111111111111"
+    },
+    "payload": {
+      "eventId": "55555555-5555-4555-8555-555555555555",
+      "occurredAt": "2030-01-01T00:00:00Z",
+      "expiresAt": "2030-01-01T01:00:00Z",
+      "order": {
+        "orderId": "22222222-2222-4222-8222-222222222222",
+        "customerId": "customer-1",
+        "items": [{ "sku": "widget-1", "quantity": 2 }]
+      }
+    }
+  }
+}
