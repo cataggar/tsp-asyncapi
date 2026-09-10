@@ -71,7 +71,10 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
   let refused = false;
   for (const output of outputs) {
     const built = await buildOutput(output.document, options, providers);
-    refused ||= built.refused;
+    if (built.refused) {
+      refused = true;
+      continue;
+    }
     pending.push({ path: output.path, content: built.content });
   }
   const ambiguousSecurity = program.diagnostics
@@ -119,7 +122,7 @@ async function buildOutput(
   document: DocumentContext,
   options: AsyncAPIEmitterOptions,
   providers: readonly SchemaArtifactProvider[],
-): Promise<{ content: string; refused: boolean }> {
+): Promise<{ refused: true } | { refused: false; content: string }> {
   const { program } = document;
   const validInputs = validateVersionedInputs(document);
   const diagnosticStart = program.diagnostics.length;
@@ -129,6 +132,7 @@ async function buildOutput(
     providers,
     document.artifactInput,
   );
+  if (collected.refused) return { refused: true };
   const doc = await buildDocumentFromContext(document, options, collected.artifacts);
   const invalidView =
     document.realm !== undefined &&
@@ -143,11 +147,12 @@ async function buildOutput(
       },
     });
   }
+  if (!validInputs || invalidView) return { refused: true };
   return {
     content:
       options["file-type"] === "json"
         ? JSON.stringify(doc, null, 2)
         : yaml.stringify(doc, { lineWidth: 0 }),
-    refused: !validInputs || collected.refused || invalidView,
+    refused: false,
   };
 }

@@ -132,9 +132,12 @@ their existing supported-feature restrictions.
   separate version-available empty message carriers with separate raw schemas.
   Static raw schemas are passed through, not validated for wire compatibility.
 - Unsupported generated-schema combinations, conflicting providers, and errors
-  found while resolving/lowering any selected view prevent the **entire output
-  set** from being written. `noEmit` writes no files; compiler 1.16 skips emitter
-  execution, so emitter-specific view validation requires an emission pass.
+  found while resolving/lowering any selected root-version or dependency-only
+  view prevent the **entire output set** from being written. Malformed schema
+  extensions also refuse the whole set, including unversioned service outputs.
+  A refused binary view is not lowered as native; other selected views are still
+  validated. `noEmit` writes no files; compiler 1.16 skips emitter execution, so
+  emitter-specific view validation requires an emission pass.
 - Native schemas support instantiated message aliases. The Avro and Protobuf
   providers still reject template-instance payloads; these aliases are explicitly
   diagnosed rather than dropped or silently emitted as native schemas.

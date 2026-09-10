@@ -115,8 +115,10 @@ Avro 與 Protobuf 預覽 payload 也使用相同有效型別圖，但仍受原�
   型別內容，與版本化欄位混用時會拒絕輸出，而不會假裝 raw schema 也跟著變更。
   請使用個別版本可用的空 message carrier，分別提供 raw schema。靜態 raw schema
   會原樣輸出，不代表已驗證其傳輸相容性。
-- 不支援的產生式 schema 組合、provider 衝突，或任一選定檢視在解析及轉換時出現
-  錯誤， 都會阻止**整組輸出**寫入。`noEmit` 不寫出任何檔案；compiler 1.16 會略過 emitter，
+- 不支援的產生式 schema 組合、provider 衝突，或任一選定根版本或相依版本檢視在
+  解析及轉換時出現錯誤，都會阻止**整組輸出**寫入。Schema extension 格式錯誤也會
+  拒絕整組輸出，包括未版本化的 service。遭拒絕的二進位檢視不會再轉換成原生 schema，
+  但仍會繼續驗證其他選定檢視。`noEmit` 不寫出任何檔案；compiler 1.16 會略過 emitter，
   因此 emitter 專屬的檢視驗證需要實際執行輸出流程。
 - 原生 schema 支援 message alias 執行個體，但 Avro 與 Protobuf provider 仍不支援
   template 執行個體 payload。這種組合會明確回報診斷，不會遺漏或改用原生 schema。

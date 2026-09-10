@@ -44,6 +44,27 @@ const MIXED = `
   }
 `;
 
+const BINARY_REFUSAL = `
+  @service @versioned(Versions) @Avro.avroNamespace("binary")
+  namespace Binary {
+    enum Versions { v1, v2 }
+    @message @Avro.avroRecord model Event {
+      id: string;
+      @added(Versions.v2) unsupported: unknown;
+      @added(Versions.v2) @visibility(Lifecycle.Read)
+      @jsonSchemaExtension("type", "invalid") value: string;
+    }
+  }
+`;
+
+const INVALID_NATIVE_EXTENSION = `
+  @service namespace Native {
+    @message model Event {
+      @jsonSchemaExtension("type", "invalid") value: string;
+    }
+  }
+`;
+
 function assertReferences(documents: Readonly<Record<string, AsyncAPIDocument>>) {
   for (const doc of Object.values(documents)) {
     for (const ref of referencesIn(doc)) expect(resolveRef(doc, ref), ref).toBeDefined();
@@ -154,6 +175,61 @@ describe("Integration: actual service/version output sets", () => {
     expect(outputs).toEqual({});
     expect(diagnostics.map(({ code }) => code)).toContain(
       "tsp-asyncapi/unsupported-versioned-contract",
+    );
+  });
+
+  it.each(["yaml", "json"] as const)(
+    "withholds all versioned outputs for a malformed later unversioned extension (%s)",
+    async (fileType) => {
+      const { outputs, diagnostics } = await emitVersioned(
+        `
+          @service @versioned(Versions) namespace Versioned {
+            enum Versions { v1, v2 }
+            @message model Event { value: string; }
+          }
+          ${INVALID_NATIVE_EXTENSION}
+        `,
+        { "file-type": fileType },
+      );
+      expect(outputs).toEqual({});
+      expect(diagnostics.map(({ code }) => code)).toEqual([
+        "tsp-asyncapi/invalid-schema-extension",
+      ]);
+    },
+  );
+
+  it.each([false, true])(
+    "continues other contexts without lowering a refused version as native (binary first=%s)",
+    async (binaryFirst) => {
+      const sources = [BINARY_REFUSAL, INVALID_NATIVE_EXTENSION];
+      if (!binaryFirst) sources.reverse();
+      const { outputs, diagnostics } = await emitDocumentsWithDiagnostics(
+        sources.join("\n"),
+        { "preview-features": ["avro"] },
+        false,
+        VersioningTester.import("tsp-avro"),
+      );
+      expect(outputs).toEqual({});
+      expect(
+        diagnostics.map(({ code }) => code).sort((left, right) => left.localeCompare(right)),
+      ).toEqual([
+        "tsp-asyncapi/avro-artifact-unavailable",
+        "tsp-asyncapi/invalid-schema-extension",
+      ]);
+    },
+  );
+
+  it("does not collect or lower refused and malformed unselected service/version views", async () => {
+    const { documents, diagnostics } = await emitDocumentsWithDiagnostics(
+      `${BINARY_REFUSAL}\n${INVALID_NATIVE_EXTENSION}`,
+      { service: "Binary", version: "v1", "preview-features": ["avro"] },
+      false,
+      VersioningTester.import("tsp-avro"),
+    );
+    expectDiagnosticEmpty(diagnostics);
+    expect(Object.keys(documents)).toEqual(["asyncapi.Binary.v1.yaml"]);
+    expect(documents["asyncapi.Binary.v1.yaml"].components?.messages?.Event.payload).toHaveProperty(
+      "schemaFormat",
     );
   });
 
@@ -542,12 +618,10 @@ describe("Integration: genuine version mutation of erased aliases", () => {
         VersioningTester.import(provider === "avro" ? "tsp-avro" : "@typespec/protobuf"),
       );
       expect(outputs).toEqual({});
-      expect(diagnostics.map(({ code }) => code)).toContain(
+      expect(diagnostics.map(({ code }) => code)).toEqual([
         `tsp-asyncapi/${provider}-artifact-unavailable`,
-      );
-      expect(diagnostics.map(({ code }) => code)).toContain(
-        "tsp-asyncapi/unsupported-versioned-contract",
-      );
+        `tsp-asyncapi/${provider}-artifact-unavailable`,
+      ]);
     },
   );
 

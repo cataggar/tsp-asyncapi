@@ -13,6 +13,8 @@ schemas, and explicit refusals for unsupported versioned contracts. Require Node
 Combine service selection with versioning through complete effective declaration
 boundaries, including truly mutated alias-only messages, channels, and actions.
 Apply service ownership after mutation and preflight the shared output plan.
+Withhold the whole selected set for malformed schema extensions. Skip native
+fallback lowering after a binary refusal while validating other selected views.
 
 Keep standalone Avro record discovery on original declarations, including erased
 alias instances, when another emitter has replayed decorators on versioned clones.
