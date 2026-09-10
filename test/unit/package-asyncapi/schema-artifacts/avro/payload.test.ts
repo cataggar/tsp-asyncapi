@@ -309,7 +309,7 @@ describe("Unit: Avro generated payloads", () => {
    * resolves the services before it stops, so a project hears about both from
    * one compile.
    */
-  it("reports the extra service as well as the refused record", async () => {
+  it("refuses the entire multi-service output set when a record is unavailable", async () => {
     const { doc, diagnostics } = await emit(`
       @service(#{ title: "Orders" })
       @Avro.avroNamespace("com.example.orders")
@@ -331,7 +331,7 @@ describe("Unit: Avro generated payloads", () => {
       namespace Second {}
     `);
 
-    expect(diagnosticsWith(diagnostics, "multiple-services")).toHaveLength(1);
+    expect(diagnosticsWith(diagnostics, "multiple-services")).toHaveLength(0);
     expect(diagnosticsWith(diagnostics, "avro-artifact-unavailable")).toHaveLength(1);
     expect(doc).toBeNull();
   });

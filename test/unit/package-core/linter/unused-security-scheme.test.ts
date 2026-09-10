@@ -11,6 +11,19 @@ import { createRuleTester } from "../../../utils/linter.js";
  * authentication method nothing requires.
  */
 describe("Unit: the unused-security-scheme rule", () => {
+  it("does not let another service's same-name use hide an unused owned scheme", async () => {
+    const tester = await createRuleTester(unusedSecuritySchemeRule);
+    await tester
+      .expect(
+        `
+      @service @securityScheme("auth", #{ type: "plain" }) namespace A {}
+      @service @securityScheme("auth", #{ type: "userPassword" })
+      @useSecurity("auth") @server("broker", #{ host: "b.example", protocol: "kafka" })
+      namespace B {}
+    `,
+      )
+      .toEmitDiagnostics({ code: "tsp-asyncapi/unused-security-scheme" });
+  });
   it("stays quiet when a namespace names the scheme", async () => {
     const tester = await createRuleTester(unusedSecuritySchemeRule);
     await tester

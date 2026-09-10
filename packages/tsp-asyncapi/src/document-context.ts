@@ -24,6 +24,11 @@ export interface EffectiveDocumentGraph {
   readonly root: Namespace;
   readonly service: Service | undefined;
   readonly realm?: Realm;
+  /**
+   * Complete live candidates, including retained erased alias instances.
+   * Service isolation requires this for changed graphs; explicit omission is
+   * the adapter's removal decision, not permission to recover source state.
+   */
   readonly declarations?: DocumentDeclarations;
 }
 
@@ -136,6 +141,16 @@ function snapshotDeclarations(declarations: DocumentDeclarations): DocumentDecla
     channels: Object.freeze([...new Set(declarations.channels)]),
     operations: Object.freeze([...new Set(declarations.operations)]),
     namespaces: Object.freeze([...new Set(declarations.namespaces)]),
+    ...(declarations.securitySchemes === undefined
+      ? {}
+      : {
+          securitySchemes: new Map(
+            [...declarations.securitySchemes].map(([namespace, names]) => [
+              namespace,
+              new Set(names),
+            ]),
+          ),
+        }),
     diagnosticTargets: new Set(declarations.diagnosticTargets),
   });
 }

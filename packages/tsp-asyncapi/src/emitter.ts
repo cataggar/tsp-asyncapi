@@ -1,8 +1,9 @@
-import { EmitContext, emitFile, resolvePath, listServices, Service } from "@typespec/compiler";
+import { EmitContext, emitFile, getNamespaceFullName, listServices } from "@typespec/compiler";
 import { reportDiagnostic } from "tsp-asyncapi-core";
 import type { AsyncAPIEmitterOptions } from "./emitter-options.js";
 import { buildDocumentFromContext } from "./pipeline.js";
-import { createDocumentContext } from "./document-context.js";
+import { createServiceDocumentContext, validateServiceOwnership } from "./service-context.js";
+import { planDocumentOutputs } from "./document-output.js";
 import { reportUnavailablePreviewFeatures } from "./preview-features.js";
 import {
   availableFeatures,
@@ -21,66 +22,82 @@ import yaml from "yaml";
 export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
   const options = context.options;
   const program = context.program;
+  const diagnosticStart = program.diagnostics.length;
+  const hasPlanningError = () =>
+    program.diagnostics.slice(diagnosticStart).some(({ severity }) => severity === "error");
 
   const providers = shippedProviders();
 
   const services = listServices(program);
-  let service: Service | undefined = undefined;
-  if (services.length > 0) {
-    service = services[0];
-    if (services.length > 1) {
-      reportDiagnostic(program, {
-        code: "multiple-services",
-        target: services[1].type,
-      });
-    }
+  const selected =
+    options.service === undefined
+      ? services
+      : services.filter((service) => getNamespaceFullName(service.type) === options.service);
+  if (options.service !== undefined && selected.length === 0) {
+    reportDiagnostic(program, {
+      code: "unknown-service",
+      target: program.getGlobalNamespaceType(),
+      format: {
+        name: options.service,
+        available:
+          services.map((service) => getNamespaceFullName(service.type)).join(", ") || "(none)",
+      },
+    });
   }
-
-  const document = createDocumentContext(program, service);
-  const collected = await collectSchemaArtifacts(
-    program,
-    new Set(options["preview-features"] ?? []),
-    providers,
-    document.artifactInput,
-  );
-
-  // Two refusals leave from here. A requested feature with no provider behind
-  // it is one. A conflict that removed both artifacts is the other, because
-  // the models it hit fall back to the schema their TypeSpec type produces.
-  // Either way a document written now would ignore the request without saying
-  // so, so nothing is written.
-  //
-  // The check sits below the service resolution on purpose. A project with
-  // two services hears about both faults from one compile.
+  if (options.service !== undefined && selected.length > 1) {
+    reportDiagnostic(program, {
+      code: "ambiguous-service-selection",
+      target: program.getGlobalNamespaceType(),
+      format: { name: options.service },
+    });
+  }
+  validateServiceOwnership(program, services);
   const unavailable = reportUnavailablePreviewFeatures(
     program,
     options,
     availableFeatures(providers),
   );
-  if (unavailable || collected.refused) return;
-
-  const doc = await buildDocumentFromContext(document, options, collected.artifacts);
-
-  // Default serialization
+  if (unavailable || hasPlanningError()) return;
+  const contexts = (services.length === 0 ? [undefined] : selected).flatMap((service) => {
+    const document = createServiceDocumentContext(program, service, services);
+    return document === undefined ? [] : [document];
+  });
   const fileType = options["file-type"] ?? "yaml";
-  const defaultFilename = fileType === "json" ? "asyncapi.json" : "asyncapi.yaml";
-  const filename = options["output-file"] ?? defaultFilename;
-
-  let outputContent: string;
-  if (fileType === "json") {
-    outputContent = JSON.stringify(doc, null, 2);
-  } else {
-    // `lineWidth: 0` turns line wrapping off. The default width of 80 folds
-    // a long scalar such as a `$ref` across two lines. A folded `$ref` is
-    // legal YAML, but a plain-text search for the pointer no longer finds it.
-    outputContent = yaml.stringify(doc, { lineWidth: 0 });
-  }
-
-  if (!context.program.compilerOptions.noEmit) {
-    const outPath = resolvePath(context.emitterOutputDir, filename);
-    await emitFile(program, {
-      path: outPath,
-      content: outputContent,
+  const outputs = planDocumentOutputs(
+    program,
+    context.emitterOutputDir,
+    contexts.map((document) => ({
+      document,
+      serviceName: document.originalServiceId,
+      multipleServices: services.length > 1,
+      fileType,
+      target: document.service?.type ?? program.getGlobalNamespaceType(),
+    })),
+    options["output-file"],
+  );
+  if (outputs === undefined || hasPlanningError()) return;
+  const pending: { path: string; content: string }[] = [];
+  let refused = false;
+  for (const output of outputs) {
+    const collected = await collectSchemaArtifacts(
+      program,
+      new Set(options["preview-features"] ?? []),
+      providers,
+      output.document.artifactInput,
+    );
+    refused ||= collected.refused;
+    const doc = await buildDocumentFromContext(output.document, options, collected.artifacts);
+    pending.push({
+      path: output.path,
+      content:
+        fileType === "json" ? JSON.stringify(doc, null, 2) : yaml.stringify(doc, { lineWidth: 0 }),
     });
   }
+  // Resolve/lower every selected document before the first write, including noEmit.
+  // Existing diagnostic-and-drop recovery remains intact; shared security ambiguity is a new refusal.
+  const ambiguousSecurity = program.diagnostics
+    .slice(diagnosticStart)
+    .some(({ code }) => code === "tsp-asyncapi/ambiguous-security-scheme");
+  if (refused || ambiguousSecurity || program.compilerOptions.noEmit) return;
+  for (const output of pending) await emitFile(program, output);
 }

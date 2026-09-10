@@ -61,10 +61,14 @@ const PREVIEW_FEATURE_NAMES = Object.keys({
  */
 export interface AsyncAPIEmitterOptions {
   /**
-   * The name of the output file.
-   * @defaultValue "asyncapi.yaml" or "asyncapi.json" (depending on file-type)
+   * Output filename or template. Tokens: service-name, service-name-if-multiple,
+   * version, file-type. Multiple documents must resolve to distinct portable paths.
+   * @defaultValue `"asyncapi.{service-name-if-multiple}.{version}.{file-type}"`
    */
   "output-file"?: string;
+
+  /** Select one exact fully qualified service namespace. By default, emit all services. */
+  service?: string;
 
   /**
    * The format of the output file.
@@ -102,6 +106,7 @@ export const EmitterOptionsSchema: JSONSchemaType<AsyncAPIEmitterOptions> = {
   additionalProperties: false,
   properties: {
     "output-file": { type: "string", nullable: true },
+    service: { type: "string", nullable: true },
     "file-type": { type: "string", enum: ["yaml", "json"], nullable: true },
     "asyncapi-id": { type: "string", nullable: true },
     "default-content-type": { type: "string", nullable: true },

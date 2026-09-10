@@ -18,11 +18,13 @@
  * writes nothing, and it produces no value that any stage consumes.
  */
 
-import type { Model, Program } from "@typespec/compiler";
+import { listServices, type Model, type Namespace, type Program } from "@typespec/compiler";
 import { isHeader, listMessages } from "./decorators/index.js";
 import { reportDiagnostic } from "./lib.js";
 import { listProtobufMessageModels } from "./protobuf-state.js";
 import { listAvroRecordModels } from "./avro-state.js";
+import { listSecuritySchemeDeclarations } from "./decorators/security/scheme-state.js";
+import { serviceOwner } from "./service-ownership.js";
 
 /**
  * Runs every whole program check.
@@ -33,6 +35,28 @@ import { listAvroRecordModels } from "./avro-state.js";
  */
 export function $onValidate(program: Program): void {
   reportHeadersOnGeneratedPayloads(program);
+  reportDuplicateSecuritySchemes(program);
+}
+
+function reportDuplicateSecuritySchemes(program: Program): void {
+  const services = listServices(program);
+  const scopes = new Map<Namespace | undefined, Set<string>>();
+  for (const { namespace, record } of listSecuritySchemeDeclarations(program)) {
+    const owner = services.length <= 1 ? services[0]?.type : serviceOwner(program, namespace);
+    // Shared definitions in a multi-service program become ambiguous only
+    // when a selected application actually asks for their name.
+    if (owner === undefined && services.length > 1) continue;
+    const names = scopes.get(owner) ?? new Set<string>();
+    if (names.has(record.state.name)) {
+      reportDiagnostic(program, {
+        code: "duplicate-security-scheme-name",
+        target: record.nameTarget,
+        format: { name: record.state.name },
+      });
+    }
+    names.add(record.state.name);
+    scopes.set(owner, names);
+  }
 }
 
 /** What a diagnostic calls the decorator that asked for a generated payload. */

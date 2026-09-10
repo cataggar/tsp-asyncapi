@@ -5,7 +5,11 @@
 
 import { describe, it, expect } from "vitest";
 import { $lib } from "#core/lib.js";
-import { emitDocument, emitDocumentWithDiagnostics } from "../utils/test-host.js";
+import {
+  emitDocument,
+  emitDocumentsWithDiagnostics,
+  emitDocumentWithDiagnostics,
+} from "../utils/test-host.js";
 import { byCodePoint } from "../utils/sort.js";
 import {
   externalDocsOf,
@@ -46,16 +50,16 @@ describe("AsyncAPI Emitter", () => {
     await expect(doc).toBeValidAsyncAPI();
   });
 
-  it("should output diagnostic on multiple services", async () => {
+  it("should output one document per declared service", async () => {
     const code = `
       namespace S1 { @service(#{ title: "Service 1" }) namespace Inner1 {} }
       namespace S2 { @service(#{ title: "Service 2" }) namespace Inner2 {} }
     `;
-    const { doc, diagnostics } = await emitDocumentWithDiagnostics(code, {}, false);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].code).toBe("tsp-asyncapi/multiple-services");
-    expect(infoOf(doc).title).toBe("Service 1");
-    await expect(doc).toBeValidAsyncAPI();
+    const { documents, diagnostics } = await emitDocumentsWithDiagnostics(code);
+    expect(diagnostics).toHaveLength(0);
+    expect(infoOf(documents["asyncapi.S1.Inner1.yaml"]).title).toBe("Service 1");
+    expect(infoOf(documents["asyncapi.S2.Inner2.yaml"]).title).toBe("Service 2");
+    for (const doc of Object.values(documents)) await expect(doc).toBeValidAsyncAPI();
   });
 
   it("should output fallback document when no service is provided", async () => {

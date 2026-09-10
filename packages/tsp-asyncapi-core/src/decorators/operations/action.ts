@@ -6,6 +6,7 @@ import {
   OperationActionState,
   claimAction,
   getActionInternal,
+  listOperationActions,
   setAction,
 } from "./state.js";
 
@@ -145,4 +146,9 @@ export function getOperationAction(
 ): OperationActionState | undefined {
   const entry = getActionInternal(program, target);
   return entry === undefined ? undefined : { ...entry.record };
+}
+
+/** Original action identities, including instantiated aliases absent from namespace maps. @internal */
+export function listOperationActionTargets(program: Program): readonly Operation[] {
+  return listOperationActions(program).map(({ target }) => target);
 }

@@ -8,6 +8,42 @@ Every warning and error the emitter can report, with what causes it and how to f
 
 ## Errors
 
+### `incomplete-effective-document`
+
+An adapter supplied a changed service graph without a complete live declaration boundary. Namespace maps do not contain every retained alias-only message, channel, or action instance, so automatic discovery could silently lose a contract. The adapter must include all retained live instances and deliberately omit removed ones. The context is refused instead of emitting a partial document.
+
+### `stale-effective-declaration`
+
+A changed service graph contains a declaration still owned by the selected original service namespace, rather than its live namespace identity. Source models are useful for diagnostics and inventories, but cannot replace mutated declaration or artifact inputs. The adapter must supply the real live identities; the context is refused.
+
+### `unknown-service`
+
+The `service` option does not match an exact fully qualified service namespace. The diagnostic lists available names. Use the namespace name, including parent namespaces and original case, rather than a title or short name. No output is written.
+
+### `ambiguous-service-selection`
+
+More than one service resolves to the selected fully qualified name. Give the namespaces distinct names; a selector must identify exactly one service.
+
+### `unowned-application-declaration`
+
+A channel or action has no enclosing service in a program with multiple original services. Move it beneath its owning `@service`. Selecting just one service does not resolve that ambiguity. Inherited/template source signatures realized on an owned channel are not independent application roots.
+
+### `cross-service-reference`
+
+A selected service references a message envelope or reply channel owned by another service. Shared plain payload/header models are allowed; application contracts are not imported implicitly. Use an unowned reusable message or a local envelope around common domain data. The complete output set is withheld.
+
+### `ambiguous-security-scheme`
+
+Multiple definitions of a security scheme name are visible in one document. This includes an explicitly used shared name with two shared definitions, or a shared and an owned definition. Rename or relocate the definitions. There is no source-order or local-over-shared winner.
+
+### `invalid-output-file`
+
+`output-file` contains an unknown or malformed token, or resolves to a directory instead of a filename. Supported tokens are `service-name`, `service-name-if-multiple`, `version`, and `file-type`.
+
+### `duplicate-output-file`
+
+Two selected documents resolve to the same portable output path, including case-insensitive collisions. Use distinguishing service/version tokens, or select one document before choosing a literal filename. All filenames are preflighted before writing; no output is overwritten or automatically renamed.
+
 ### `duplicate-schema-key`
 
 > Duplicate schema name: '\<name\>'. Check @friendlyName decorators and overlap with types in TypeSpec or service namespace.
@@ -552,9 +588,9 @@ Every missing field of one object is reported, not only the first. Reporting one
 
 ### `duplicate-security-scheme-name`
 
-> Duplicate security scheme name: '\<name\>'. Each @securityScheme needs its own name, because the name is the key of that scheme in components.securitySchemes. This @securityScheme was dropped, and the first one with this name in source order was kept.
+> Duplicate security scheme name: '\<name\>'. Each @securityScheme in one service needs its own components.securitySchemes key. Rename one declaration.
 
-Two `@securityScheme` applications share a name. The name is the key of the `components.securitySchemes` map, so the two would collide. The schemes are collected across the whole program, so two applications on different namespaces clash as well.
+Two `@securityScheme` applications in the same service share a name. Namespace children belong to their nearest service; nested services have independent registries. Separate services may reuse names. With zero or one original service, unowned declarations retain legacy global visibility and participate in duplicate detection.
 
 **Fix:** Give one of them a different name.
 
@@ -974,9 +1010,7 @@ A base model is a declaration of its own, shared by every model that extends it,
 
 > Multiple services found. AsyncAPI only supports one service per document. The first one will be used.
 
-More than one namespace carries `@service`. The emitter uses the first and ignores the rest.
-
-**Fix:** keep one `@service` per compilation, or split services into separate `tsp compile` runs.
+Historical diagnostic, retained for compatibility but no longer emitted. Every declared service now gets its own document. Use the [`service` option](./emitter-options#service-documents-and-filenames) to select one.
 
 ### `unserializable-example`
 

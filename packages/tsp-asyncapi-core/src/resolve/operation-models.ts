@@ -34,6 +34,8 @@ const reportedUnsupportedMessageTypes = Symbol.for(
 export interface OperationModelContext {
   readonly operations: ReadonlySet<Operation> | undefined;
   readonly reportedUnsupportedMessageTypes: Set<Type>;
+  /** Scope discovery reads candidates; the subsequent document build reports invalid signatures. */
+  readonly diagnose?: boolean;
 }
 
 /**
@@ -155,6 +157,18 @@ function operationModels(
   collectInto(found, seen, parameters);
   collectInto(found, seen, returns);
   return found;
+}
+
+/** Effective message candidates from both sides of one signature; provenance is not traversed. @internal */
+export function getOperationMessageModels(
+  program: Program,
+  operation: Operation,
+): readonly Model[] {
+  return operationModels(program, operation, {
+    operations: undefined,
+    reportedUnsupportedMessageTypes: new Set(),
+    diagnose: false,
+  });
 }
 
 /**
@@ -345,7 +359,7 @@ function unwrap(
     if (element !== undefined) return unwrap(program, element, visited, context);
     return [type];
   }
-  if (type.kind === "Tuple") {
+  if (type.kind === "Tuple" && context?.diagnose !== false) {
     reportUnsupportedOperationMessageType(program, type, context);
   }
   return [];

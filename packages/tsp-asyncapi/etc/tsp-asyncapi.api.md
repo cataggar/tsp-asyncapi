@@ -102,6 +102,7 @@ export interface AsyncAPIEmitterOptions {
     "file-type"?: "yaml" | "json";
     "output-file"?: string;
     "preview-features"?: PreviewFeature[];
+    service?: string;
 }
 
 export { BindingObject }

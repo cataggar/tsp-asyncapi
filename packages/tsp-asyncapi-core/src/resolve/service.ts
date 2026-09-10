@@ -663,7 +663,11 @@ export function resolveService(
     reportedUnsupportedMessageTypes: new Set(),
   };
   const declaredMessages = documentMessages(program, declarations);
-  const securitySchemes = resolveSecuritySchemes(program, declarations?.namespaces);
+  const securitySchemes = resolveSecuritySchemes(
+    program,
+    declarations?.namespaces,
+    declarations?.securitySchemes,
+  );
   const declaredSchemes = new Set(securitySchemes.map((scheme) => scheme.name));
   // The channels are resolved before the servers, and a channel writes a
   // reference to a server. So the names are read here, ahead of both.

@@ -39,4 +39,68 @@ describe("Unit: $onEmit", () => {
     expect(path).toContain("custom.json");
     expect(content).toContain('"title": "Emit Test"');
   });
+
+  it.each([false, true])(
+    "withholds every output when a later document has ambiguous security (noEmit=%s)",
+    async (noEmit) => {
+      const runner = await AsyncAPITester.createInstance();
+      await runner.compile(
+        `
+      @securityScheme("auth", #{ type: "plain" }) namespace Shared {}
+      @securityScheme("auth", #{ type: "userPassword" }) namespace OtherShared {}
+      @service namespace A {}
+      @service @useSecurity("auth")
+      @server("broker", #{ host: "b.example", protocol: "kafka" }) namespace B {}
+    `,
+        { compilerOptions: { noEmit } },
+      );
+      const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+      await $onEmit(emitContextFor(runner.program, {}));
+      expect(runner.program.diagnostics.map(({ code }) => code)).toContain(
+        "tsp-asyncapi/ambiguous-security-scheme",
+      );
+      expect(writeFile).not.toHaveBeenCalled();
+    },
+  );
+
+  it("runs ownership diagnostics under noEmit before writing a selected app", async () => {
+    const runner = await AsyncAPITester.createInstance();
+    await runner.compile(
+      "@service namespace A {} @service namespace B {} @send op outside(): void;",
+      { compilerOptions: { noEmit: true } },
+    );
+    const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+    await $onEmit(emitContextFor(runner.program, { service: "A" }));
+    expect(runner.program.diagnostics.map(({ code }) => code)).toContain(
+      "tsp-asyncapi/unowned-application-declaration",
+    );
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("runs output collision diagnostics under noEmit", async () => {
+    const runner = await AsyncAPITester.createInstance();
+    await runner.compile("@service namespace A {} @service namespace B {}", {
+      compilerOptions: { noEmit: true },
+    });
+    const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+    await $onEmit(emitContextFor(runner.program, { "output-file": "fixed.yaml" }));
+    expect(runner.program.diagnostics.map(({ code }) => code)).toContain(
+      "tsp-asyncapi/duplicate-output-file",
+    );
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("suppresses all successful writes under noEmit without suppressing warnings", async () => {
+    const runner = await AsyncAPITester.createInstance();
+    await runner.compile(
+      '@service namespace A { @channel("empty") interface Empty {} } @service namespace B {}',
+      { compilerOptions: { noEmit: true } },
+    );
+    const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
+    await $onEmit(emitContextFor(runner.program, {}));
+    expect(runner.program.diagnostics.map(({ code }) => code)).toContain(
+      "tsp-asyncapi/channel-no-messages",
+    );
+    expect(writeFile).not.toHaveBeenCalled();
+  });
 });

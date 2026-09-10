@@ -31,6 +31,8 @@ export interface DocumentDeclarations {
   readonly operations: readonly Operation[];
   /** Namespaces whose security scheme declarations are visible to this document. */
   readonly namespaces: readonly Namespace[];
+  /** Optional per-namespace name selection, for explicitly used shared schemes. */
+  readonly securitySchemes?: ReadonlyMap<Namespace, ReadonlySet<string>>;
   /** Includes misplaced declarations whose diagnostics belong to this document. */
   readonly diagnosticTargets: ReadonlySet<Type>;
 }
