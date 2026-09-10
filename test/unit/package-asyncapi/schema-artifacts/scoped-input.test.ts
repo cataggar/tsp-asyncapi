@@ -12,8 +12,61 @@ import {
 } from "#emitter/schema-artifacts/provider.js";
 import { buildDocumentFromContext } from "#emitter/pipeline.js";
 import { createLibraryTester } from "../../../utils/emitter-package.js";
+import { PACKAGE_NAME } from "#emitter/lib.js";
 
 describe("Unit: scoped artifact inputs", () => {
+  it.each([
+    {
+      id: "avro",
+      library: "tsp-avro",
+      namespace: '@Avro.avroNamespace("shared")',
+      model: "@Avro.avroRecord",
+      property: "",
+    },
+    {
+      id: "protobuf",
+      library: "@typespec/protobuf",
+      namespace: '@Protobuf.package({ name: "shared" })',
+      model: "@Protobuf.message",
+      property: "@Protobuf.field(1)",
+    },
+  ])(
+    "isolates same-name $id payloads through the actual multi-service emitter",
+    async (fixture) => {
+      const [result, diagnostics] = await createLibraryTester(fixture.library).emit(PACKAGE_NAME, {
+        "preview-features": [fixture.id],
+        "file-type": "json",
+      }).compileAndDiagnose(`
+      @service ${fixture.namespace} namespace A {
+        @message ${fixture.model} model Event { ${fixture.property} alpha: string; }
+      }
+      @service ${fixture.namespace} namespace B {
+        @message ${fixture.model} model Event { ${fixture.property} beta: string; }
+      }
+    `);
+      expectDiagnosticEmpty(diagnostics);
+      expect(Object.keys(result.outputs)).toEqual(["asyncapi.A.json", "asyncapi.B.json"]);
+      expect(result.outputs["asyncapi.A.json"]).toContain("alpha");
+      expect(result.outputs["asyncapi.A.json"]).not.toContain("beta");
+      expect(result.outputs["asyncapi.B.json"]).toContain("beta");
+      expect(result.outputs["asyncapi.B.json"]).not.toContain("alpha");
+    },
+  );
+
+  it("does not collect a refused artifact from an unselected service", async () => {
+    const [result, diagnostics] = await createLibraryTester("tsp-avro").emit(PACKAGE_NAME, {
+      "preview-features": ["avro"],
+      service: "A",
+    }).compileAndDiagnose(`
+      @service namespace A {}
+      @service @Avro.avroNamespace("b") namespace B {
+        @message @Avro.avroRecord model Event { unsupported: unknown; }
+      }
+    `);
+    expectDiagnosticEmpty(diagnostics);
+    expect(Object.keys(result.outputs)).toEqual(["asyncapi.A.yaml"]);
+  });
+
   it.each([
     {
       id: "protobuf",

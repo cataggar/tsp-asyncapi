@@ -1,7 +1,7 @@
 import { DiagnosticTarget, Namespace, Program } from "@typespec/compiler";
 import { useStateMap } from "@typespec/compiler/utils";
 import type { SecuritySchemeObject } from "../../types/index.js";
-import { bySourcePosition, isSameApplication, SourcePosition } from "../../source-order.js";
+import { bySourcePosition, SourcePosition } from "../../source-order.js";
 
 const securitySchemeStateKey = Symbol.for("tsp-asyncapi.securityScheme");
 
@@ -29,10 +29,6 @@ export interface SecuritySchemeRecord extends SourcePosition {
   nameTarget: DiagnosticTarget;
 }
 
-// The state is keyed by namespace, the same as the servers. The schemes are
-// read back across the whole program though, because
-// `components.securitySchemes` is a document-wide registry. A server reaches
-// a scheme by name, so the namespace a scheme sits on does not matter.
 const [getSecuritySchemesInternal, setSecuritySchemes, getSecuritySchemeStateMap] = useStateMap<
   Namespace,
   SecuritySchemeRecord[]
@@ -68,54 +64,32 @@ export function listSecuritySchemes(program: Program): AsyncAPISecuritySchemeSta
  * @internal
  */
 export function listSecuritySchemeRecords(program: Program): SecuritySchemeRecord[] {
-  const records: SecuritySchemeRecord[] = [];
-  const firstByName = new Map<string, SecuritySchemeRecord>();
-  for (const [, namespaceRecords] of getSecuritySchemeStateMap(program)) {
+  return listSecuritySchemeDeclarations(program).map(({ record }) => record);
+}
+
+/** Source declarations with their owning namespace; cloned replays do not duplicate source validation. */
+export function listSecuritySchemeDeclarations(
+  program: Program,
+): { namespace: Namespace; record: SecuritySchemeRecord }[] {
+  const declarations: { namespace: Namespace; record: SecuritySchemeRecord }[] = [];
+  const seen = new Set<string>();
+  for (const [namespace, namespaceRecords] of getSecuritySchemeStateMap(program)) {
     for (const record of namespaceRecords) {
-      const first = firstByName.get(record.state.name);
-      // Live namespace replays are available through per-target reads. The
-      // legacy registry keeps the original declaration, not every replay.
-      if (first !== undefined && isSameApplication(first, record)) continue;
-      if (first === undefined) firstByName.set(record.state.name, record);
-      records.push(record);
+      const key = JSON.stringify([record.file, record.pos, record.state.name]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      declarations.push({ namespace, record });
     }
   }
-  records.sort(bySourcePosition(program));
-  return records;
+  const compare = bySourcePosition(program);
+  return declarations.sort((a, b) => compare(a.record, b.record));
 }
 
-/**
- * Where a scheme with one name already sits.
- * The caller replaces the record in place when the new application turns
- * out to be the earlier one, so it needs the list and the index, not only
- * the record.
- */
-export interface SecuritySchemeSlot {
-  /** The list that holds the record. It is the state of one namespace. */
-  records: SecuritySchemeRecord[];
-  /** The position of the record inside that list. */
-  index: number;
-}
-
-/**
- * Finds the scheme that already claims one name, anywhere in the program.
- *
- * The name is the key of a document-wide registry, so two schemes with one
- * name clash even when they sit on different namespaces. Returns where that
- * scheme sits, or `undefined` when the name is free.
- *
- * @param program - The program to read the state from
- * @param name - The name to look for
- *
- * @returns Where that scheme sits, or `undefined` when the name is free
- */
-export function findSecuritySchemeByName(
-  program: Program,
-  name: string,
-): SecuritySchemeSlot | undefined {
-  for (const [, records] of getSecuritySchemeStateMap(program)) {
-    const index = records.findIndex((record) => record.state.name === name);
-    if (index >= 0) return { records, index };
-  }
-  return undefined;
+/** Names declared on one live namespace, without global discovery. @internal */
+export function getSecuritySchemeNames(program: Program, namespace: Namespace): readonly string[] {
+  return [
+    ...new Set(
+      (getSecuritySchemesInternal(program, namespace) ?? []).map(({ state }) => state.name),
+    ),
+  ];
 }

@@ -11,7 +11,7 @@ import { LinterDefinition } from '@typespec/compiler';
 import { Model } from '@typespec/compiler';
 import { ModelProperty } from '@typespec/compiler';
 import { Namespace } from '@typespec/compiler';
-import type { Operation } from '@typespec/compiler';
+import { Operation } from '@typespec/compiler';
 import { Program } from '@typespec/compiler';
 import { Service } from '@typespec/compiler';
 import { Type } from '@typespec/compiler';
@@ -101,6 +101,7 @@ export interface DocumentDeclarations {
     readonly models: readonly Model[];
     readonly namespaces: readonly Namespace[];
     readonly operations: readonly Operation[];
+    readonly securitySchemes?: ReadonlyMap<Namespace, ReadonlySet<string>>;
 }
 
 // @public
@@ -118,6 +119,16 @@ export interface ExternalSchemaArtifact {
 //
 // @internal
 export function getMessageState(program: Program, model: Model): MessageState | undefined;
+
+// Warning: (ae-internal-missing-underscore) The name "getOperationMessageModels" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export function getOperationMessageModels(program: Program, operation: Operation): readonly Model[];
+
+// Warning: (ae-internal-missing-underscore) The name "getSecuritySchemeNames" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export function getSecuritySchemeNames(program: Program, namespace: Namespace): readonly string[];
 
 // Warning: (ae-internal-missing-underscore) The name "InfoNode" should be prefixed with an underscore because the declaration is marked as @internal
 //
@@ -327,6 +338,11 @@ export interface ServerVariableNode {
     readonly enum?: readonly string[];
     readonly examples?: readonly string[];
 }
+
+// Warning: (ae-internal-missing-underscore) The name "serviceOwner" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export function serviceOwner(program: Program, type: Type): Namespace | undefined;
 
 // Warning: (ae-internal-missing-underscore) The name "UnreadableProtobufPackage" should be prefixed with an underscore because the declaration is marked as @internal
 //

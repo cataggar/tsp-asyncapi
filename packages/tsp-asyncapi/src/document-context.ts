@@ -136,6 +136,16 @@ function snapshotDeclarations(declarations: DocumentDeclarations): DocumentDecla
     channels: Object.freeze([...new Set(declarations.channels)]),
     operations: Object.freeze([...new Set(declarations.operations)]),
     namespaces: Object.freeze([...new Set(declarations.namespaces)]),
+    ...(declarations.securitySchemes === undefined
+      ? {}
+      : {
+          securitySchemes: new Map(
+            [...declarations.securitySchemes].map(([namespace, names]) => [
+              namespace,
+              new Set(names),
+            ]),
+          ),
+        }),
     diagnosticTargets: new Set(declarations.diagnosticTargets),
   });
 }

@@ -3,7 +3,6 @@ import { reportDiagnostic } from "../../lib.js";
 import type { OAuthFlowObject, OAuthFlowsObject, SecuritySchemeObject } from "../../types/index.js";
 import {
   AsyncAPISecuritySchemeState,
-  findSecuritySchemeByName,
   getSecuritySchemesInternal,
   listSecuritySchemes,
   SecuritySchemeRecord,
@@ -11,7 +10,6 @@ import {
 } from "./scheme-state.js";
 import { isAbsoluteUrl } from "../absolute-url.js";
 import { isSameApplication, sourcePositionOf } from "../../source-order.js";
-import { settleNameClash } from "../name-clash.js";
 import { HTTP_BEARER_SCHEME, COMPONENTS_KEY_PATTERN } from "../../constants.js";
 
 /**
@@ -530,11 +528,8 @@ function normalizeScheme(
  * This decorator is repeatable. Each application defines its own scheme,
  * and the `name` argument becomes the key of that scheme.
  *
- * The schemes are collected across the whole program, not from the service
- * namespace only. `components` is a document-wide registry, and a server
- * reaches a scheme by name, so the namespace a scheme sits on carries no
- * meaning. This differs from `@server`, whose namespace decides whether the
- * server reaches the document at all.
+ * Each service owns its schemes. An unowned scheme can be shared by services
+ * that explicitly use its name. The same name in separate services is legal.
  *
  * A name is used unchanged, so it must fit the Components Object character
  * set. Two schemes with the same name are a mistake. The one written first
@@ -584,21 +579,6 @@ export function $securityScheme(
     ...sourcePositionOf(context.decoratorTarget),
     nameTarget,
   };
-
-  const clash = findSecuritySchemeByName(context.program, name);
-  if (clash !== undefined && !isSameApplication(clash.records[clash.index], record)) {
-    // `settleNameClash` holds the rule, because `@server` needs the same
-    // answer for the key it writes.
-    settleNameClash(
-      context.program,
-      clash.records,
-      clash.index,
-      record,
-      "duplicate-security-scheme-name",
-      name,
-    );
-    return;
-  }
 
   const records = getSecuritySchemesInternal(context.program, target) ?? [];
   // A replay on a cloned namespace needs its own state, while an augment

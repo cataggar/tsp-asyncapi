@@ -17,7 +17,9 @@ extern dec securityScheme(
 
 Defines one entry of `components.securitySchemes`. The `name` argument becomes the key of that entry. The decorator is repeatable.
 
-The schemes are collected across the whole program. `components` is a document-wide registry, so a scheme reaches the document from any namespace. This differs from `@server`, which the emitter reads from the service namespace only.
+Each service has its own `components.securitySchemes` registry. Schemes belong to their nearest enclosing service and are retained even when unused. Separate services may reuse a name; two declarations within one service may not. The emitter still reads `@server` from the service namespace itself.
+
+In a multi-service program, an unowned scheme is shared only with documents that explicitly name it through `@useSecurity`. Only the used names are imported, not every scheme on the shared namespace. Multiple visible definitions of a used name report `ambiguous-security-scheme`; a local definition does not silently shadow a shared one. With zero or one original service, the legacy program-wide scheme visibility is preserved.
 
 `AsyncAPISecurityScheme` is a union of one model per kind of scheme. The `type` field picks the model. The models never share a field, so the type checker rejects a field that belongs to another kind.
 

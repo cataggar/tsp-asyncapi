@@ -34,11 +34,18 @@
  * collects every use, and `exit` compares the two sets once it finishes.
  */
 
-import { createRule, paramMessage } from "@typespec/compiler";
+import {
+  createRule,
+  listServices,
+  paramMessage,
+  type Namespace,
+  type Operation,
+} from "@typespec/compiler";
 // Not on the barrel. A record carries `nameTarget`, and only a reporter
 // needs it; the barrel's `getSecuritySchemes` drops the target.
-import { listSecuritySchemeRecords } from "../decorators/security/scheme-state.js";
+import { listSecuritySchemeDeclarations } from "../decorators/security/scheme-state.js";
 import { getUsedSecuritySchemes } from "../decorators/index.js";
+import { serviceOwner } from "../service-ownership.js";
 
 export const unusedSecuritySchemeRule = createRule({
   name: "unused-security-scheme",
@@ -53,19 +60,33 @@ export const unusedSecuritySchemeRule = createRule({
     // one, which also applies the deduplication `listUsedSecuritySchemes`
     // decides, so this rule and the server builder agree on what counts as
     // a use.
-    const used = new Set<string>();
+    const services = listServices(context.program);
+    const used = new Map<Namespace | undefined, Set<string>>();
+    const recordUse = (target: Namespace | Operation): void => {
+      const owner =
+        services.length <= 1 ? services[0]?.type : serviceOwner(context.program, target);
+      const names = used.get(owner) ?? new Set<string>();
+      for (const name of getUsedSecuritySchemes(context.program, target)) names.add(name);
+      used.set(owner, names);
+    };
 
     return {
       namespace: (namespace) => {
-        for (const name of getUsedSecuritySchemes(context.program, namespace)) used.add(name);
+        recordUse(namespace);
       },
       operation: (operation) => {
-        for (const name of getUsedSecuritySchemes(context.program, operation)) used.add(name);
+        recordUse(operation);
       },
       exit: (program) => {
-        for (const record of listSecuritySchemeRecords(program)) {
+        for (const { namespace, record } of listSecuritySchemeDeclarations(program)) {
           const { name } = record.state;
-          if (used.has(name)) continue;
+          const owner = services.length <= 1 ? services[0]?.type : serviceOwner(program, namespace);
+          if (
+            owner === undefined
+              ? [...used.values()].some((names) => names.has(name))
+              : used.get(owner)?.has(name)
+          )
+            continue;
 
           // `nameTarget` rather than the namespace. It is where the author
           // wrote the name, which is the thing this warning is about.

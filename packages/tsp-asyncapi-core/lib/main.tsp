@@ -37,15 +37,15 @@ extern dec server(target: Namespace, name: valueof string, config: valueof Async
  * Defines one entry of `components.securitySchemes`. The `name` argument
  * becomes the key of that entry.
  * Repeatable: apply it more than once to define more than one scheme.
- * The schemes are collected across the whole program, not from the service
- * namespace only. `components` is a document-wide registry, so a scheme
- * reaches the document from any namespace.
+ * Each service owns a separate registry, so different services may reuse a
+ * scheme name. In multi-service programs, unowned schemes are shared only
+ * when explicitly named by `@useSecurity`, and visible names must be unique.
+ * Zero/one-service programs retain legacy program-wide visibility.
  * The `scheme` argument is one of the Security Scheme models below. The
  * `type` field picks the model, and the type checker then rejects a field
  * that belongs to another kind of scheme.
  *
- * @param target The namespace that declares the scheme. Any namespace
- * reaches the document.
+ * @param target The namespace that declares the owned or shared scheme.
  * @param name The key of this scheme in `components.securitySchemes`.
  * @param scheme One of the security scheme models, picked by its `type`.
  */

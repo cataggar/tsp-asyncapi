@@ -17,7 +17,9 @@ extern dec securityScheme(
 
 定義一筆 `components.securitySchemes` 項目。`name` 引數就是該項目的 key。此 decorator 可重複套用。
 
-emitter 會跨整個程式收集 scheme。`components` 是整份文件共用的登錄表，所以任何 namespace 上的 scheme 都會進入文件。這一點與 `@server` 不同，emitter 只讀 service namespace 上的 server。
+每個 service 都有自己的 `components.securitySchemes` 登錄表。Scheme 屬於最近一層包含它的 service，即使未使用也會保留。不同 service 可以重用名稱；同一 service 內的宣告不能重名。emitter 仍只讀 service namespace 本身的 `@server`。
+
+有多個 service 時，沒有 service 歸屬的 scheme 只會提供給透過 `@useSecurity` 明確指名它的文件。只匯入使用到的名稱，不會匯入共用 namespace 上的所有 scheme。同一個使用中的名稱有多個可見定義時，會回報 `ambiguous-security-scheme`；本地定義不會靜默覆蓋共用定義。原始程式只有零個或一個 service 時，保留舊有的全程式可見性。
 
 `AsyncAPISecurityScheme` 是每種 scheme 一個 model 的 union。`type` 欄位決定採用哪個 model。各 model 之間不共用欄位，因此型別檢查會擋掉屬於其他種類的欄位。
 

@@ -48,6 +48,48 @@ export const PACKAGE_NAME = "tsp-asyncapi-core";
 export const $lib = createTypeSpecLibrary({
   name: LIBRARY_NAME,
   diagnostics: {
+    "unknown-service": {
+      severity: "error",
+      messages: {
+        default: paramMessage`No service has the exact fully qualified namespace name '${"name"}'. Available services: ${"available"}.`,
+      },
+    },
+    "ambiguous-service-selection": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Service selector '${"name"}' matches more than one namespace. Give the services distinct fully qualified namespace names.`,
+      },
+    },
+    "unowned-application-declaration": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Application declaration '${"name"}' has no service owner in a program with multiple services. Move it under the service that owns the channel or action.`,
+      },
+    },
+    "cross-service-reference": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Service '${"service"}' references application contract '${"name"}' owned by service '${"owner"}'. Use an unowned reusable message or an application-local envelope around shared domain data instead.`,
+      },
+    },
+    "ambiguous-security-scheme": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Security scheme '${"name"}' has multiple visible definitions in this document. Rename the definitions or restrict them to their owning services.`,
+      },
+    },
+    "invalid-output-file": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Invalid output-file '${"filename"}': ${"reason"}.`,
+      },
+    },
+    "duplicate-output-file": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Multiple documents resolve to the same portable output path '${"filename"}'. Include service-name-if-multiple and version tokens in output-file, or select one document.`,
+      },
+    },
     "multiple-services": {
       severity: "warning",
       messages: {
@@ -611,7 +653,7 @@ export const $lib = createTypeSpecLibrary({
     "duplicate-security-scheme-name": {
       severity: "error",
       messages: {
-        default: paramMessage`Duplicate security scheme name: '${"name"}'. Each @securityScheme needs its own name, because the name is the key of that scheme in components.securitySchemes. This @securityScheme was dropped, and the first one with this name in source order was kept.`,
+        default: paramMessage`Duplicate security scheme name: '${"name"}'. Each @securityScheme in one service needs its own components.securitySchemes key. Rename one declaration.`,
       },
     },
     "invalid-security-scheme-name": {

@@ -8,6 +8,34 @@ outline: 2
 
 ## 錯誤
 
+### `unknown-service`
+
+`service` 選項沒有精確匹配完整 service namespace 名稱。訊息會列出可用名稱。請使用包含父 namespace 且大小寫一致的名稱，不要使用 title 或簡稱。不會寫出任何文件。
+
+### `ambiguous-service-selection`
+
+有多個 service 解析成選取的完整名稱。請使用不同的 namespace 名稱；選取條件必須唯一識別一個 service。
+
+### `unowned-application-declaration`
+
+原始程式有多個 service，但某個 channel 或 action 沒有 service 歸屬。請把它放到所屬 `@service` 底下。只選取一個 service 不會解除歧義。在自有 channel 上實例化的繼承／template signature 不算獨立應用程式根節點。
+
+### `cross-service-reference`
+
+選定 service 引用了另一個 service 的 message envelope 或 reply channel。一般共用 payload／header model 可以使用，但應用程式合約不會隱含匯入。請用沒有 service 歸屬的共用 message，或以本地 envelope 包裝 domain 資料。整組輸出都會被阻止。
+
+### `ambiguous-security-scheme`
+
+同一份文件可見某個 security scheme 名稱的多個定義。可能是明確使用的共用名稱有兩個共用定義，或同時有共用與自有定義。請改名或移動宣告；不會依原始碼順序或本地優先規則選一個。
+
+### `invalid-output-file`
+
+`output-file` 包含未知或不完整的 token，或解析成目錄而不是檔名。支援 `service-name`、`service-name-if-multiple`、`version` 與 `file-type`。
+
+### `duplicate-output-file`
+
+兩份選定文件解析到同一個可攜輸出路徑，包括不區分大小寫的碰撞。請加入能區分 service／version 的 token，或先只選一份文件再使用固定檔名。所有檔名都會在寫檔前檢查；不會覆寫或自動改名。
+
 ### `duplicate-schema-key`
 
 > Duplicate schema name: '\<name\>'. Check @friendlyName decorators and overlap with types in TypeSpec or service namespace.
@@ -552,9 +580,9 @@ AsyncAPI 規定 Bindings Object 的每個成員都是物件。字串、數字與
 
 ### `duplicate-security-scheme-name`
 
-> Duplicate security scheme name: '\<name\>'. Each @securityScheme needs its own name, because the name is the key of that scheme in components.securitySchemes. This @securityScheme was dropped, and the first one with this name in source order was kept.
+> Duplicate security scheme name: '\<name\>'. Each @securityScheme in one service needs its own components.securitySchemes key. Rename one declaration.
 
-兩個 `@securityScheme` 用了同一個名稱。名稱就是 `components.securitySchemes` map 的 key，兩者會相撞。scheme 是跨整個程式收集的，因此標在不同 namespace 上也算重名。
+同一 service 內的兩個 `@securityScheme` 用了同一個名稱。子 namespace 屬於最近的 service；巢狀 service 有獨立登錄表。不同 service 可以重用名稱。原始程式只有零個或一個 service 時，無歸屬宣告保留舊有的全域可見性，也會參與重名檢查。
 
 **修法：** 其中一個改名。
 
@@ -969,9 +997,7 @@ base model 本身是獨立的宣告，每個繼承它的 model 都共用它，pa
 
 > Multiple services found. AsyncAPI only supports one service per document. The first one will be used.
 
-多個 namespace 都標了 `@service`。emitter 採用第一個，忽略其餘。
-
-**修法：** 一次編譯保留一個 `@service`，或把 service 拆成多次 `tsp compile`。
+這是為相容性保留、已不再回報的歷史診斷。現在每個 service 都會產生自己的文件。可用 [`service` 選項](./emitter-options#service-文件與檔名)只選取一個。
 
 ### `unserializable-example`
 
