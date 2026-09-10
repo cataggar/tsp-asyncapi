@@ -21,3 +21,9 @@ test/**/__snapshots__/
 
 # Official OpenAPI resources are retained byte-for-byte with provenance hashes.
 test/fixtures/openapi/3.1/*.json
+
+# These are exact emitter bytes checked by examples:interop:check.
+examples/19-http-service-bus/**/asyncapi.yaml
+examples/19-http-service-bus/**/asyncapi.json
+examples/19-http-service-bus/**/openapi.yaml
+examples/19-http-service-bus/**/openapi.json

@@ -29,8 +29,15 @@ description: "每個範例都是能直接編譯的專案，附 TypeSpec 原始�
 | [Protobuf payload](https://github.com/marvin-hsu/tsp-asyncapi/tree/main/examples/16-protobuf-payloads)              | 兩個 Protobuf package 走 RabbitMQ，`.proto` 檔案與文件一起輸出。                               |
 | [Avro schema](https://github.com/marvin-hsu/tsp-asyncapi/tree/main/examples/17-avro-schemas)                        | 一個訂單領域寫成 Avro schema 檔案，由 `tsp-avro` 產生，沒有 AsyncAPI 文件。                    |
 | [Avro payload](https://github.com/marvin-hsu/tsp-asyncapi/tree/main/examples/18-avro-payloads)                      | 兩個 Avro record 走 Kafka，`.avsc` 檔案與文件寫在一起。                                        |
+| [HTTP 與 Service Bus](https://github.com/cataggar/tsp-asyncapi/tree/main/examples/19-http-service-bus)              | 共用 Order、不同封裝、四個應用進入點，以及八份 OpenAPI/AsyncAPI YAML/JSON 文件。               |
 
 ## 執行其中一個
+
+[`19-http-service-bus`](https://github.com/cataggar/tsp-asyncapi/tree/main/examples/19-http-service-bus)
+的 [HTTP 與 Service Bus 範例](./http-service-bus) 有四個獨立進入點，共用 Order：
+HTTP、gateway messaging、processor 與 fulfillment。從根目錄執行
+`pnpm examples:interop` 產生八份 YAML/JSON 文件，或用
+`pnpm examples:interop:check` 驗證。只編譯該目錄預設會輸出 gateway AsyncAPI YAML。
 
 把 repository clone 下來，在想看的目錄裡編譯：
 

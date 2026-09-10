@@ -1,0 +1,9 @@
+emit:
+  - tsp-asyncapi
+options:
+  tsp-asyncapi:
+    emitter-output-dir: "{project-root}"
+    file-type: yaml
+    output-file: asyncapi.yaml
+    asyncapi-id: urn:example:order-fulfillment
+    default-content-type: application/json

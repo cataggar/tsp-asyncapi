@@ -1,0 +1,163 @@
+asyncapi: 3.1.0
+id: urn:example:order-fulfillment
+info:
+  title: Order Fulfillment
+  version: 1.0.0
+  description: Consumes the fulfillment subscription, not the publisher's topic endpoint.
+  x-azure-service-bus:
+    profileVersion: 0.1.0
+    target: info
+    asyncapiVersion: 3.1.0
+defaultContentType: application/json
+servers:
+  service-bus:
+    host: servicebus.example.invalid
+    protocol: amqps
+    protocolVersion: "1.0"
+channels:
+  fulfillment:
+    address: example-order-events/Subscriptions/example-fulfillment
+    servers:
+      - $ref: "#/servers/service-bus"
+    messages:
+      OrderPlaced:
+        $ref: "#/components/messages/OrderPlaced"
+    x-azure-service-bus:
+      profileVersion: 0.1.0
+      target: channel
+      entity:
+        kind: subscription
+        id: orders.fulfillment
+        topicId: orders.events
+      deploymentRequirements:
+        allowedTiers:
+          - standard
+          - premium
+        sessions: true
+        lockDurationSeconds: 30
+        maxDeliveryCount: 10
+        defaultTtlSeconds: 86400
+        deadLetterOnExpiration: true
+operations:
+  onOrderPlaced:
+    action: receive
+    channel:
+      $ref: "#/channels/fulfillment"
+    messages:
+      - $ref: "#/channels/fulfillment/messages/OrderPlaced"
+    x-azure-service-bus:
+      profileVersion: 0.1.0
+      target: operation
+      action: receive
+      deliveryRequirements:
+        receiveMode: peekLock
+        order: perSession
+      applicationObligations:
+        idempotency: required
+        settlement: completeAfterSuccess
+        lockLoss: treatAsUnsettled
+        failureHandling: abandonTransientDeadLetterPermanent
+        sessionProcessing: serial
+        expiry: checkApplicationDeadline
+        deadLetter: inspectAndRemediate
+      authorizationRequirements:
+        tls: true
+        authentication: entraId
+components:
+  schemas:
+    Orders.Contracts.ApplicationProperties:
+      type: object
+      properties:
+        traceId:
+          type: string
+          format: uuid
+        contractVersion:
+          type: string
+          enum:
+            - "1.0"
+        causationId:
+          type: string
+          description: The triggering command ID on events/replies; assigned by application code.
+          format: uuid
+      required:
+        - traceId
+        - contractVersion
+      description: AMQP application-properties only. Native properties are deliberately absent.
+      additionalProperties: false
+    Orders.Domain.OrderLine:
+      type: object
+      properties:
+        sku:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 1000
+      required:
+        - sku
+        - quantity
+    Orders.Domain.Order:
+      type: object
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          minLength: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Orders.Domain.OrderLine"
+          minItems: 1
+      required:
+        - orderId
+        - customerId
+        - items
+      description: "Shared business data: no HTTP, AsyncAPI, or Service Bus annotations."
+    Orders.Contracts.OrderPlaced:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        order:
+          $ref: "#/components/schemas/Orders.Domain.Order"
+      required:
+        - eventId
+        - occurredAt
+        - expiresAt
+        - order
+  messages:
+    OrderPlaced:
+      name: OrderPlaced
+      contentType: application/json
+      headers:
+        $ref: "#/components/schemas/Orders.Contracts.ApplicationProperties"
+      payload:
+        $ref: "#/components/schemas/Orders.Contracts.OrderPlaced"
+      x-azure-service-bus:
+        profileVersion: 0.1.0
+        target: message
+        messageKind: event
+        nativeProperties:
+          MessageId:
+            required: true
+          CorrelationId:
+            required: true
+          SessionId:
+            required: true
+          Subject:
+            required: true
+            const: order.placed
+          ContentType:
+            required: true
+        ttlSeconds: 3600

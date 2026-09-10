@@ -1,0 +1,379 @@
+{
+  "asyncapi": "3.1.0",
+  "id": "urn:example:order-gateway",
+  "info": {
+    "title": "Order Gateway messaging",
+    "version": "1.0.0",
+    "description": "The gateway sends commands and receives results; HTTP is a separate entrypoint.",
+    "x-azure-service-bus": {
+      "profileVersion": "0.1.0",
+      "target": "info",
+      "asyncapiVersion": "3.1.0"
+    }
+  },
+  "defaultContentType": "application/json",
+  "servers": {
+    "service-bus": {
+      "host": "servicebus.example.invalid",
+      "protocol": "amqps",
+      "protocolVersion": "1.0"
+    }
+  },
+  "channels": {
+    "commands": {
+      "address": "example-order-commands",
+      "servers": [
+        {
+          "$ref": "#/servers/service-bus"
+        }
+      ],
+      "messages": {
+        "PlaceOrder": {
+          "$ref": "#/components/messages/PlaceOrder"
+        }
+      },
+      "x-azure-service-bus": {
+        "profileVersion": "0.1.0",
+        "target": "channel",
+        "entity": {
+          "kind": "queue",
+          "id": "orders.commands"
+        },
+        "deploymentRequirements": {
+          "allowedTiers": [
+            "standard",
+            "premium"
+          ],
+          "sessions": true,
+          "partitioning": "disabled",
+          "duplicateDetection": {
+            "required": true,
+            "scope": "messageId",
+            "historyWindowSeconds": 600
+          },
+          "lockDurationSeconds": 30,
+          "maxDeliveryCount": 10,
+          "defaultTtlSeconds": 86400,
+          "deadLetterOnExpiration": true
+        }
+      }
+    },
+    "replies": {
+      "address": "example-order-replies",
+      "servers": [
+        {
+          "$ref": "#/servers/service-bus"
+        }
+      ],
+      "messages": {
+        "OrderCommandResult": {
+          "$ref": "#/components/messages/OrderCommandResult"
+        }
+      },
+      "x-azure-service-bus": {
+        "profileVersion": "0.1.0",
+        "target": "channel",
+        "entity": {
+          "kind": "queue",
+          "id": "orders.gateway-replies"
+        },
+        "deploymentRequirements": {
+          "allowedTiers": [
+            "standard",
+            "premium"
+          ],
+          "sessions": true,
+          "partitioning": "disabled",
+          "duplicateDetection": {
+            "required": true,
+            "scope": "messageId",
+            "historyWindowSeconds": 600
+          },
+          "lockDurationSeconds": 30,
+          "maxDeliveryCount": 10,
+          "defaultTtlSeconds": 86400,
+          "deadLetterOnExpiration": true
+        }
+      }
+    }
+  },
+  "operations": {
+    "submitOrder": {
+      "action": "send",
+      "channel": {
+        "$ref": "#/channels/commands"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/commands/messages/PlaceOrder"
+        }
+      ],
+      "reply": {
+        "channel": {
+          "$ref": "#/channels/replies"
+        },
+        "messages": [
+          {
+            "$ref": "#/channels/replies/messages/OrderCommandResult"
+          }
+        ]
+      },
+      "x-azure-service-bus": {
+        "profileVersion": "0.1.0",
+        "target": "operation",
+        "action": "send",
+        "applicationObligations": {
+          "messageIdentity": "uniquePerMessageStableOnRetry"
+        },
+        "authorizationRequirements": {
+          "tls": true,
+          "authentication": "entraId"
+        },
+        "nativeReply": {
+          "address": "fixedChannel",
+          "correlation": "requestMessageId",
+          "session": "requestReplyToSessionId"
+        }
+      }
+    },
+    "receiveResult": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels/replies"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/replies/messages/OrderCommandResult"
+        }
+      ],
+      "x-azure-service-bus": {
+        "profileVersion": "0.1.0",
+        "target": "operation",
+        "action": "receive",
+        "deliveryRequirements": {
+          "receiveMode": "peekLock",
+          "order": "perSession"
+        },
+        "applicationObligations": {
+          "idempotency": "required",
+          "settlement": "completeAfterSuccess",
+          "lockLoss": "treatAsUnsettled",
+          "failureHandling": "abandonTransientDeadLetterPermanent",
+          "sessionProcessing": "serial",
+          "expiry": "checkApplicationDeadline",
+          "deadLetter": "inspectAndRemediate"
+        },
+        "authorizationRequirements": {
+          "tls": true,
+          "authentication": "entraId"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Orders.Contracts.ApplicationProperties": {
+        "type": "object",
+        "properties": {
+          "traceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contractVersion": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "causationId": {
+            "type": "string",
+            "description": "The triggering command ID on events/replies; assigned by application code.",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "traceId",
+          "contractVersion"
+        ],
+        "description": "AMQP application-properties only. Native properties are deliberately absent.",
+        "additionalProperties": false
+      },
+      "Orders.Domain.OrderLine": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "sku",
+          "quantity"
+        ]
+      },
+      "Orders.Domain.Order": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Orders.Domain.OrderLine"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "orderId",
+          "customerId",
+          "items"
+        ],
+        "description": "Shared business data: no HTTP, AsyncAPI, or Service Bus annotations."
+      },
+      "Orders.Contracts.PlaceOrder": {
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An application deadline; broker TTL does not cancel business effects."
+          },
+          "order": {
+            "$ref": "#/components/schemas/Orders.Domain.Order"
+          }
+        },
+        "required": [
+          "commandId",
+          "expiresAt",
+          "order"
+        ]
+      },
+      "Orders.Contracts.OrderCommandResult": {
+        "type": "object",
+        "properties": {
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "commandId",
+          "orderId",
+          "outcome",
+          "expiresAt"
+        ]
+      }
+    },
+    "messages": {
+      "PlaceOrder": {
+        "name": "PlaceOrder",
+        "contentType": "application/json",
+        "headers": {
+          "$ref": "#/components/schemas/Orders.Contracts.ApplicationProperties"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/Orders.Contracts.PlaceOrder"
+        },
+        "x-azure-service-bus": {
+          "profileVersion": "0.1.0",
+          "target": "message",
+          "messageKind": "command",
+          "nativeProperties": {
+            "MessageId": {
+              "required": true
+            },
+            "CorrelationId": {
+              "required": true
+            },
+            "SessionId": {
+              "required": true
+            },
+            "ReplyTo": {
+              "required": true
+            },
+            "ReplyToSessionId": {
+              "required": true
+            },
+            "Subject": {
+              "required": true,
+              "const": "order.place"
+            },
+            "ContentType": {
+              "required": true
+            }
+          },
+          "ttlSeconds": 3600
+        }
+      },
+      "OrderCommandResult": {
+        "name": "OrderCommandResult",
+        "contentType": "application/json",
+        "headers": {
+          "$ref": "#/components/schemas/Orders.Contracts.ApplicationProperties"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/Orders.Contracts.OrderCommandResult"
+        },
+        "x-azure-service-bus": {
+          "profileVersion": "0.1.0",
+          "target": "message",
+          "messageKind": "reply",
+          "nativeProperties": {
+            "MessageId": {
+              "required": true
+            },
+            "CorrelationId": {
+              "required": true
+            },
+            "SessionId": {
+              "required": true
+            },
+            "Subject": {
+              "required": true,
+              "const": "order.result"
+            },
+            "ContentType": {
+              "required": true
+            }
+          },
+          "ttlSeconds": 3600
+        }
+      }
+    }
+  }
+}
