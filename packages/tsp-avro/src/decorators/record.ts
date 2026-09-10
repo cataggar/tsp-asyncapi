@@ -7,14 +7,9 @@
  * whether the model translates.
  */
 
-import {
-  DecoratorContext,
-  Model,
-  Program,
-  navigateProgram,
-  type Namespace,
-} from "@typespec/compiler";
+import { DecoratorContext, Model, Program } from "@typespec/compiler";
 import { useStateSet } from "@typespec/compiler/utils";
+import { isSourceType } from "../compiler-views.js";
 
 const recordStateKey = Symbol.for("tsp-avro.record");
 
@@ -72,17 +67,5 @@ export function isRecord(program: Program, target: Model): boolean {
 export function listRecords(program: Program): Model[] {
   // Another emitter can replay decorators on versioned clones. Those marks
   // are not declarations in this emitter's original program graph.
-  const live = new Set<Model>();
-  const namespaces = new Set<Namespace>();
-  navigateProgram(program, {
-    namespace(namespace) {
-      namespaces.add(namespace);
-    },
-    model(model) {
-      live.add(model);
-    },
-  });
-  return [...(program.stateSet(recordStateKey) as Set<Model>)].filter((model) =>
-    model.namespace === undefined ? live.has(model) : namespaces.has(model.namespace),
-  );
+  return [...(program.stateSet(recordStateKey) as Set<Model>)].filter(isSourceType);
 }

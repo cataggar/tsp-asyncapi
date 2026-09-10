@@ -157,4 +157,18 @@ describe("Unit: versioning adapter boundaries", () => {
     expect(listRecords(program)).toEqual(originals);
     expect([...originals[0].properties.keys()]).toEqual(["value", "legacy", "replacement"]);
   });
+
+  it("preserves original Avro aliases with anonymous template arguments", async () => {
+    const { program } = await VersioningTester.import("tsp-avro").compile(`
+      @service @versioned(Versions) namespace App {
+        enum Versions { v1, v2 }
+        @message @Avro.avroRecord model Envelope<T> { value: T; }
+        alias AnonymousArgument = Envelope<{ id: string; }>;
+      }
+    `);
+    const originals = listRecords(program);
+    expect(originals).toHaveLength(1);
+    planVersionedDocuments(program, listServices(program));
+    expect(listRecords(program)).toEqual(originals);
+  });
 });

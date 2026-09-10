@@ -550,4 +550,30 @@ describe("Integration: genuine version mutation of erased aliases", () => {
       );
     },
   );
+
+  it("mutates erased message aliases with anonymous template arguments", async () => {
+    const { documents, diagnostics } = await emitVersioned(`
+      @service @versioned(Versions) namespace App {
+        enum Versions { v1, v2 }
+        @message("AliasMessage") model Envelope<T> {
+          value: T;
+          @removed(Versions.v2) legacy: string;
+          @added(Versions.v2) replacement: string;
+        }
+        alias AnonymousArgument = Envelope<{ id: string; }>;
+      }
+    `);
+    expectDiagnosticEmpty(diagnostics);
+    for (const doc of Object.values(documents)) {
+      const payload = doc.components?.messages?.AliasMessage.payload;
+      const schema =
+        payload !== undefined && "$ref" in payload && typeof payload.$ref === "string"
+          ? resolveRef(doc, payload.$ref)
+          : payload;
+      expect(schema).toMatchObject({
+        required: ["value", doc.info.version === "v1" ? "legacy" : "replacement"],
+        properties: { value: { type: "object", required: ["id"] } },
+      });
+    }
+  });
 });
