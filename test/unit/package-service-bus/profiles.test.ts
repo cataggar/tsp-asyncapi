@@ -211,6 +211,28 @@ describe("Service Bus: typed and raw profile conformance", () => {
     expect(doc?.components?.schemas?.AppProperties).not.toHaveProperty("properties.internal");
   });
 
+  it("accepts closed scalar-enum headers and integer bounds declared on a scalar", async () => {
+    const { diagnostics, doc } = await compile(
+      contract({
+        extra: `
+        enum Stage { initial: "new", ready }
+        @minValue(0) @maxValue(3) scalar Attempts extends int32;
+        @jsonSchemaExtension("additionalProperties", false)
+        model AppProperties {
+          stage: Stage;
+          mode: "normal" | "urgent";
+          fixed: "constant";
+          enabled: true;
+          attempts?: Attempts;
+        }`,
+        messageDecorators: "@headers(AppProperties)",
+      }),
+    );
+    expect(diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    await expect(doc).toBeValidAsyncAPI();
+    expect(doc).toHaveProperty("components.schemas.AppProperties.properties.attempts");
+  });
+
   it("rejects a raw profile even when generic serialization dropped its value", async () => {
     const source = contract().replace(
       decoration("info", INFO),
@@ -628,6 +650,30 @@ describe("Service Bus: typed and raw profile conformance", () => {
     [
       "raw scalar override",
       `@jsonSchemaExtension("additionalProperties", false) model Headers { @jsonSchemaExtension("type", "object") id: string; }`,
+    ],
+    [
+      "decimal application property",
+      `@jsonSchemaExtension("additionalProperties", false) model Headers { amount: decimal; }`,
+    ],
+    [
+      "numeric enum application property",
+      `enum Numeric { one: 1 } @jsonSchemaExtension("additionalProperties", false) model Headers { value: Numeric; }`,
+    ],
+    [
+      "encoded binary application property",
+      `@jsonSchemaExtension("additionalProperties", false) model Headers { @encode("base64") data: bytes; }`,
+    ],
+    [
+      "inherited application-property model",
+      `model Base { id: string; } @jsonSchemaExtension("additionalProperties", false) model Headers extends Base { extra: string; }`,
+    ],
+    [
+      "indexed application-property model",
+      `@jsonSchemaExtension("additionalProperties", false) model Headers is Record<string>;`,
+    ],
+    [
+      "duplicate application-property wire names",
+      `@jsonSchemaExtension("additionalProperties", false) model Headers { @encodedName("application/json", "id") first: string; @encodedName("application/json", "id") second: string; }`,
     ],
   ])("rejects %s", async (_name, extra) => {
     await rejected({ extra, messageDecorators: "@headers(Headers)" }, "application-properties");
