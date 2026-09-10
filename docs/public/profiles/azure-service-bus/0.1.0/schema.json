@@ -1,0 +1,368 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tsp-asyncapi.marvinhsu.dev/profiles/azure-service-bus/0.1.0/schema.json",
+  "title": "Proposed x-azure-service-bus profile 0.1.0",
+  "description": "One extension value, not an AsyncAPI document. The RFC also defines placement and cross-object rules. Proposed; pending implementation review.",
+  "oneOf": [
+    { "$ref": "#/definitions/info" },
+    { "$ref": "#/definitions/channel" },
+    { "$ref": "#/definitions/message" },
+    { "$ref": "#/definitions/operation" }
+  ],
+  "definitions": {
+    "logicalId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+      "maxLength": 128
+    },
+    "info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileVersion", "target", "asyncapiVersion"],
+      "properties": {
+        "profileVersion": { "const": "0.1.0" },
+        "target": { "const": "info" },
+        "asyncapiVersion": { "const": "3.1.0" }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["queue", "topic", "subscription"] },
+        "id": { "$ref": "#/definitions/logicalId" },
+        "topicId": { "$ref": "#/definitions/logicalId" }
+      },
+      "if": { "properties": { "kind": { "const": "subscription" } } },
+      "then": { "required": ["topicId"] },
+      "else": { "not": { "required": ["topicId"] } }
+    },
+    "duplicateDetection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "scope"],
+      "properties": {
+        "required": { "const": true },
+        "scope": { "const": "messageId" },
+        "historyWindowSeconds": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 604800
+        }
+      }
+    },
+    "deploymentRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "allowedTiers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["basic", "standard", "premium"] }
+        },
+        "sessions": { "type": "boolean" },
+        "partitioning": { "const": "disabled" },
+        "duplicateDetection": { "$ref": "#/definitions/duplicateDetection" },
+        "lockDurationSeconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+        "maxDeliveryCount": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "defaultTtlSeconds": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "deadLetterOnExpiration": { "type": "boolean" }
+      },
+      "if": { "required": ["duplicateDetection"] },
+      "then": { "required": ["partitioning"] }
+    },
+    "channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileVersion", "target", "entity"],
+      "properties": {
+        "profileVersion": { "const": "0.1.0" },
+        "target": { "const": "channel" },
+        "entity": { "$ref": "#/definitions/entity" },
+        "deploymentRequirements": { "$ref": "#/definitions/deploymentRequirements" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "entity": { "properties": { "kind": { "const": "topic" } } }
+            }
+          },
+          "then": {
+            "properties": {
+              "deploymentRequirements": {
+                "not": {
+                  "anyOf": [
+                    { "required": ["sessions"] },
+                    { "required": ["lockDurationSeconds"] },
+                    { "required": ["maxDeliveryCount"] },
+                    { "required": ["deadLetterOnExpiration"] }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "entity": { "properties": { "kind": { "const": "subscription" } } }
+            }
+          },
+          "then": {
+            "properties": {
+              "deploymentRequirements": {
+                "not": {
+                  "anyOf": [
+                    { "required": ["duplicateDetection"] },
+                    { "required": ["partitioning"] }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "nativeString": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "const": { "type": "string", "minLength": 1 },
+        "maxLength": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "nativeId": {
+      "allOf": [
+        { "$ref": "#/definitions/nativeString" },
+        {
+          "properties": {
+            "const": { "type": "string", "maxLength": 128 },
+            "maxLength": { "type": "integer", "maximum": 128 }
+          }
+        }
+      ]
+    },
+    "nativeAddress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": { "required": { "type": "boolean" } }
+    },
+    "nativeContentType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": { "required": { "const": true } }
+    },
+    "nativeProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "MessageId": { "$ref": "#/definitions/nativeId" },
+        "CorrelationId": { "$ref": "#/definitions/nativeString" },
+        "SessionId": { "$ref": "#/definitions/nativeId" },
+        "ReplyTo": { "$ref": "#/definitions/nativeAddress" },
+        "ReplyToSessionId": { "$ref": "#/definitions/nativeId" },
+        "Subject": { "$ref": "#/definitions/nativeString" },
+        "ContentType": { "$ref": "#/definitions/nativeContentType" }
+      }
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileVersion", "target"],
+      "properties": {
+        "profileVersion": { "const": "0.1.0" },
+        "target": { "const": "message" },
+        "messageKind": { "enum": ["command", "event", "reply"] },
+        "nativeProperties": { "$ref": "#/definitions/nativeProperties" },
+        "ttlSeconds": { "type": "integer", "minimum": 1, "maximum": 4294967 }
+      }
+    },
+    "deliveryRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receiveMode"],
+      "properties": {
+        "receiveMode": { "enum": ["peekLock", "receiveAndDelete"] },
+        "order": { "const": "perSession" }
+      }
+    },
+    "applicationObligations": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "messageIdentity": { "const": "uniquePerMessageStableOnRetry" },
+        "idempotency": { "const": "required" },
+        "settlement": { "const": "completeAfterSuccess" },
+        "lockLoss": { "const": "treatAsUnsettled" },
+        "failureHandling": {
+          "enum": ["abandonTransientDeadLetterPermanent", "applicationRecovery"]
+        },
+        "loss": { "const": "accepted" },
+        "sessionProcessing": { "const": "serial" },
+        "expiry": { "enum": ["checkApplicationDeadline", "processIfDelivered"] },
+        "deadLetter": { "const": "inspectAndRemediate" }
+      }
+    },
+    "authorizationRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tls"],
+      "properties": {
+        "tls": { "const": true },
+        "authentication": { "enum": ["entraId", "sas"] }
+      }
+    },
+    "nativeReply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "correlation"],
+      "properties": {
+        "address": { "enum": ["fixedChannel", "requestReplyTo"] },
+        "correlation": { "const": "requestMessageId" },
+        "session": { "const": "requestReplyToSessionId" }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profileVersion", "target", "action"],
+      "properties": {
+        "profileVersion": { "const": "0.1.0" },
+        "target": { "const": "operation" },
+        "action": { "enum": ["send", "receive"] },
+        "deliveryRequirements": { "$ref": "#/definitions/deliveryRequirements" },
+        "applicationObligations": { "$ref": "#/definitions/applicationObligations" },
+        "authorizationRequirements": { "$ref": "#/definitions/authorizationRequirements" },
+        "nativeReply": { "$ref": "#/definitions/nativeReply" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "send" } } },
+          "then": {
+            "not": { "required": ["deliveryRequirements"] },
+            "properties": {
+              "applicationObligations": {
+                "not": {
+                  "anyOf": [
+                    { "required": ["idempotency"] },
+                    { "required": ["settlement"] },
+                    { "required": ["lockLoss"] },
+                    { "required": ["failureHandling"] },
+                    { "required": ["loss"] },
+                    { "required": ["sessionProcessing"] },
+                    { "required": ["expiry"] },
+                    { "required": ["deadLetter"] }
+                  ]
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "applicationObligations": {
+                "not": { "required": ["messageIdentity"] }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["applicationObligations"],
+            "properties": {
+              "applicationObligations": {
+                "anyOf": [
+                  { "required": ["settlement"] },
+                  { "required": ["lockLoss"] },
+                  { "required": ["failureHandling"] },
+                  { "required": ["loss"] },
+                  { "required": ["sessionProcessing"] }
+                ]
+              }
+            }
+          },
+          "then": { "required": ["deliveryRequirements"] }
+        },
+        {
+          "if": {
+            "required": ["deliveryRequirements"],
+            "properties": {
+              "deliveryRequirements": {
+                "properties": { "receiveMode": { "const": "peekLock" } }
+              }
+            }
+          },
+          "then": {
+            "required": ["applicationObligations"],
+            "properties": {
+              "applicationObligations": {
+                "required": ["settlement", "lockLoss", "failureHandling", "idempotency"],
+                "properties": {
+                  "failureHandling": { "const": "abandonTransientDeadLetterPermanent" }
+                },
+                "not": { "required": ["loss"] }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["deliveryRequirements"],
+            "properties": {
+              "deliveryRequirements": {
+                "properties": { "receiveMode": { "const": "receiveAndDelete" } }
+              }
+            }
+          },
+          "then": {
+            "required": ["applicationObligations"],
+            "properties": {
+              "deliveryRequirements": { "not": { "required": ["order"] } },
+              "applicationObligations": {
+                "required": ["loss", "failureHandling"],
+                "properties": { "failureHandling": { "const": "applicationRecovery" } },
+                "not": {
+                  "anyOf": [
+                    { "required": ["settlement"] },
+                    { "required": ["lockLoss"] },
+                    { "required": ["sessionProcessing"] },
+                    { "required": ["deadLetter"] }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["deliveryRequirements"],
+            "properties": { "deliveryRequirements": { "required": ["order"] } }
+          },
+          "then": {
+            "required": ["applicationObligations"],
+            "properties": { "applicationObligations": { "required": ["sessionProcessing"] } }
+          }
+        },
+        {
+          "if": {
+            "required": ["applicationObligations"],
+            "properties": { "applicationObligations": { "required": ["sessionProcessing"] } }
+          },
+          "then": {
+            "required": ["deliveryRequirements"],
+            "properties": { "deliveryRequirements": { "required": ["order"] } }
+          }
+        }
+      ]
+    }
+  }
+}

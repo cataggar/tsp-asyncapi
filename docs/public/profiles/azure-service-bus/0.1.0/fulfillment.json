@@ -1,0 +1,86 @@
+{
+  "asyncapi": "3.1.0",
+  "info": {
+    "title": "Order fulfillment (proposed profile example)",
+    "version": "1.0.0",
+    "x-azure-service-bus": {
+      "profileVersion": "0.1.0",
+      "target": "info",
+      "asyncapiVersion": "3.1.0"
+    }
+  },
+  "channels": {
+    "orders": {
+      "address": null,
+      "messages": { "OrderPlaced": { "$ref": "#/components/messages/OrderPlaced" } },
+      "x-azure-service-bus": {
+        "profileVersion": "0.1.0",
+        "target": "channel",
+        "entity": {
+          "kind": "subscription",
+          "id": "orders.fulfillment",
+          "topicId": "orders.events"
+        },
+        "deploymentRequirements": {
+          "allowedTiers": ["standard", "premium"],
+          "sessions": true,
+          "lockDurationSeconds": 60,
+          "maxDeliveryCount": 10,
+          "deadLetterOnExpiration": true
+        }
+      }
+    }
+  },
+  "operations": {
+    "fulfillOrder": {
+      "action": "receive",
+      "channel": { "$ref": "#/channels/orders" },
+      "messages": [{ "$ref": "#/channels/orders/messages/OrderPlaced" }],
+      "x-azure-service-bus": {
+        "profileVersion": "0.1.0",
+        "target": "operation",
+        "action": "receive",
+        "deliveryRequirements": { "receiveMode": "peekLock", "order": "perSession" },
+        "applicationObligations": {
+          "idempotency": "required",
+          "settlement": "completeAfterSuccess",
+          "lockLoss": "treatAsUnsettled",
+          "failureHandling": "abandonTransientDeadLetterPermanent",
+          "sessionProcessing": "serial",
+          "expiry": "processIfDelivered",
+          "deadLetter": "inspectAndRemediate"
+        },
+        "authorizationRequirements": { "tls": true, "authentication": "entraId" }
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "OrderPlaced": {
+        "contentType": "application/json",
+        "headers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["causationId"],
+          "properties": { "causationId": { "type": "string", "minLength": 1 } }
+        },
+        "payload": {
+          "type": "object",
+          "required": ["orderId"],
+          "properties": { "orderId": { "type": "string", "minLength": 1 } }
+        },
+        "x-azure-service-bus": {
+          "profileVersion": "0.1.0",
+          "target": "message",
+          "messageKind": "event",
+          "nativeProperties": {
+            "MessageId": { "required": true },
+            "SessionId": { "required": true },
+            "Subject": { "required": true, "const": "orders.placed.v1" },
+            "ContentType": { "required": true }
+          }
+        }
+      }
+    }
+  }
+}
