@@ -10,7 +10,7 @@ import {
   setSecuritySchemes,
 } from "./scheme-state.js";
 import { isAbsoluteUrl } from "../absolute-url.js";
-import { sourcePositionOf } from "../../source-order.js";
+import { isSameApplication, sourcePositionOf } from "../../source-order.js";
 import { settleNameClash } from "../name-clash.js";
 import { HTTP_BEARER_SCHEME, COMPONENTS_KEY_PATTERN } from "../../constants.js";
 
@@ -586,7 +586,7 @@ export function $securityScheme(
   };
 
   const clash = findSecuritySchemeByName(context.program, name);
-  if (clash !== undefined) {
+  if (clash !== undefined && !isSameApplication(clash.records[clash.index], record)) {
     // `settleNameClash` holds the rule, because `@server` needs the same
     // answer for the key it writes.
     settleNameClash(
@@ -601,6 +601,12 @@ export function $securityScheme(
   }
 
   const records = getSecuritySchemesInternal(context.program, target) ?? [];
+  // A replay on a cloned namespace needs its own state, while an augment
+  // replay on the same namespace must still count as one application.
+  if (
+    records.some((existing) => existing.state.name === name && isSameApplication(existing, record))
+  )
+    return;
   records.push(record);
   setSecuritySchemes(context.program, target, records);
 }

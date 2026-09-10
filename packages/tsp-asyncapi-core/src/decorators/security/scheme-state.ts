@@ -1,7 +1,7 @@
 import { DiagnosticTarget, Namespace, Program } from "@typespec/compiler";
 import { useStateMap } from "@typespec/compiler/utils";
 import type { SecuritySchemeObject } from "../../types/index.js";
-import { bySourcePosition, SourcePosition } from "../../source-order.js";
+import { bySourcePosition, isSameApplication, SourcePosition } from "../../source-order.js";
 
 const securitySchemeStateKey = Symbol.for("tsp-asyncapi.securityScheme");
 
@@ -69,8 +69,16 @@ export function listSecuritySchemes(program: Program): AsyncAPISecuritySchemeSta
  */
 export function listSecuritySchemeRecords(program: Program): SecuritySchemeRecord[] {
   const records: SecuritySchemeRecord[] = [];
+  const firstByName = new Map<string, SecuritySchemeRecord>();
   for (const [, namespaceRecords] of getSecuritySchemeStateMap(program)) {
-    records.push(...namespaceRecords);
+    for (const record of namespaceRecords) {
+      const first = firstByName.get(record.state.name);
+      // Live namespace replays are available through per-target reads. The
+      // legacy registry keeps the original declaration, not every replay.
+      if (first !== undefined && isSameApplication(first, record)) continue;
+      if (first === undefined) firstByName.set(record.state.name, record);
+      records.push(record);
+    }
   }
   records.sort(bySourcePosition(program));
   return records;

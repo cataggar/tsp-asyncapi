@@ -1,8 +1,11 @@
 import {
   getNamespaceFullName,
+  ListenerFlow,
   navigateType,
   type Namespace,
+  type Operation,
   type Program,
+  type SemanticNodeListener,
   type Service,
   type Type,
 } from "@typespec/compiler";
@@ -80,29 +83,48 @@ export function createDocumentContext(
  */
 export function discoverDocumentDeclarations(root: Namespace): DocumentDeclarations {
   const types = new Set<Type>();
-  const add = (type: Type): void => {
+  const operations = new Set<Operation>();
+  const add = (type: Type): ListenerFlow | undefined => {
+    if (types.has(type)) return ListenerFlow.NoRecursion;
     types.add(type);
+    return undefined;
+  };
+  const listeners: SemanticNodeListener = {
+    namespace: add,
+    interface: add,
+    operation: () => ListenerFlow.NoRecursion,
+    model: add,
+    modelProperty: add,
+    scalar: add,
+    enum: add,
+    union: add,
+    unionVariant: add,
+    tuple: add,
   };
   navigateType(
     root,
     {
-      namespace: add,
-      interface: add,
-      operation: add,
-      model: add,
-      modelProperty: add,
-      scalar: add,
-      enum: add,
-      union: add,
-      unionVariant: add,
-      tuple: add,
+      ...listeners,
+      operation(operation) {
+        operations.add(operation);
+        add(operation);
+        return ListenerFlow.NoRecursion;
+      },
     },
     {},
   );
+  // Operation.sourceOperation is provenance, not an emitted signature. Walk
+  // only the effective parameters/return of operations contained in the root.
+  for (const operation of operations) {
+    for (const property of operation.parameters.properties.values()) {
+      navigateType(property, listeners, {});
+    }
+    navigateType(operation.returnType, listeners, {});
+  }
   return snapshotDeclarations({
     models: [...types].filter((type) => type.kind === "Model"),
     channels: [...types].filter((type) => type.kind === "Namespace" || type.kind === "Interface"),
-    operations: [...types].filter((type) => type.kind === "Operation"),
+    operations: [...operations],
     namespaces: [...types].filter((type) => type.kind === "Namespace"),
     diagnosticTargets: types,
   });
