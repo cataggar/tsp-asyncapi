@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "tsBuildInfoFile": "temp/tsconfig.tsbuildinfo",
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*", "schema/**/*.json"],
+  "references": [{ "path": "../tsp-asyncapi-core" }]
+}

@@ -27,7 +27,12 @@
 >
 > - **已實作：** channel、operation、message、schema、server、security scheme，以及各種通訊協定的 binding（含 Kafka）。輸出通過官方 AsyncAPI 驗證器。
 > - **預覽功能：** Protobuf payload 與 Avro payload。
-> - **尚未進入 1.0：** 三個套件都是。次版本仍可能改變輸出。
+> - **尚未進入 1.0：** 所有已發佈的套件都是。次版本仍可能改變輸出。
+
+此 workspace 也包含**尚未發佈**的
+[`tsp-azure-service-bus`](./packages/tsp-azure-service-bus/README.zh-TW.md) companion library，
+實作版本化的 Service Bus 契約 profile，不是 Azure runtime。
+請見[參考文件與協同發布需求](./docs/zh-tw/reference/service-bus.md)。
 
 > **說明：** 本專案直接走訪 AST，沒有用 `@typespec/asset-emitter`。TypeSpec 官方正在淘汰那套舊架構（EFv1），改推 EFv2（見 [#5998](https://github.com/microsoft/typespec/issues/5998) 與 [#6583](https://github.com/microsoft/typespec/issues/6583)）。
 

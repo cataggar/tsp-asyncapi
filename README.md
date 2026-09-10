@@ -27,7 +27,12 @@ An [AsyncAPI 3.1](https://www.asyncapi.com/) emitter for [TypeSpec](https://type
 >
 > - **Implemented:** channels, operations, messages, schemas, servers, security schemes, and protocol bindings including Kafka. The official AsyncAPI validator accepts the output.
 > - **Preview features:** Protobuf payloads and Avro payloads.
-> - **Pre-1.0:** all three packages. A minor release can still change what they emit.
+> - **Pre-1.0:** all published packages. A minor release can still change what they emit.
+
+This workspace also contains the **unpublished**
+[`tsp-azure-service-bus`](./packages/tsp-azure-service-bus/) companion library.
+It implements the versioned Service Bus contract profile, not an Azure runtime.
+See its [reference and coordinated-release requirements](./docs/reference/service-bus.md).
 
 > **Note:** This project uses direct AST traversal rather than the legacy `@typespec/asset-emitter`. The TypeSpec core team is transitioning away from this old emitter framework (EFv1) in favor of EFv2 (see [#5998](https://github.com/microsoft/typespec/issues/5998) and [#6583](https://github.com/microsoft/typespec/issues/6583)).
 

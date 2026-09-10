@@ -14,10 +14,11 @@ import { describe, expect, it } from "vitest";
 const ROOT = new URL("../../../", import.meta.url);
 
 /** Every package the workspace publishes. */
-const PACKAGES = ["tsp-asyncapi-core", "tsp-asyncapi", "tsp-avro"];
+const PACKAGES = ["tsp-asyncapi-core", "tsp-asyncapi", "tsp-avro", "tsp-azure-service-bus"];
 
 /** The parts of a manifest these cases read. */
 interface Manifest {
+  files?: string[];
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -26,6 +27,18 @@ interface Manifest {
 }
 
 describe("Unit: the package check", () => {
+  it("packages the normative Service Bus schema without changes", async () => {
+    const manifest = await manifestOf("packages/tsp-azure-service-bus/package.json");
+    expect(manifest.files).toEqual(expect.arrayContaining(["dist", "schema"]));
+    const [normative, packaged] = await Promise.all(
+      [
+        "docs/public/profiles/azure-service-bus/0.1.0/schema.json",
+        "packages/tsp-azure-service-bus/schema/0.1.0.json",
+      ].map((path) => readFile(new URL(path, ROOT), "utf8")),
+    );
+    expect(packaged).toBe(normative);
+  });
+
   it.each(PACKAGES)("removes the old tarballs of %s before it packs", async (name) => {
     const manifest = await manifestOf(`packages/${name}/package.json`);
     const script = manifest.scripts?.["check:package"] ?? "";
@@ -40,8 +53,12 @@ describe("Unit: the package check", () => {
 describe("Unit: the declared dependencies", () => {
   it.each(PACKAGES)("aligns %s with the supported compiler and Node baseline", async (name) => {
     const manifest = await manifestOf(`packages/${name}/package.json`);
-    expect(manifest.peerDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
-    expect(manifest.devDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
+    const companion = name === "tsp-azure-service-bus";
+    expect(manifest.peerDependencies?.["@typespec/compiler"]).toBe(
+      companion ? "~1.16.0" : "^1.16.0",
+    );
+    expect(manifest.devDependencies?.["@typespec/compiler"]).toBe(companion ? "1.16.0" : "^1.16.0");
+    if (companion) expect(manifest.dependencies?.["@typespec/versioning"]).toBe("0.86.0");
     expect(manifest.engines?.node).toBe(">=22.0.0");
   });
 

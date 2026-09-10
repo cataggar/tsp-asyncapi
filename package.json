@@ -89,6 +89,7 @@
     "tsp-asyncapi": "workspace:*",
     "tsp-asyncapi-core": "workspace:*",
     "tsp-avro": "workspace:*",
+    "tsp-azure-service-bus": "workspace:*",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.68.0",
     "vitepress": "^1.6.4",

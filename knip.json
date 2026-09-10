@@ -11,6 +11,9 @@
     },
     "packages/tsp-avro": {
       "entry": ["src/tsp-index.ts!"]
+    },
+    "packages/tsp-azure-service-bus": {
+      "entry": ["src/tsp-index.ts!"]
     }
   }
 }

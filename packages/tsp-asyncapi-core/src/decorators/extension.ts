@@ -50,6 +50,70 @@ const [getEntriesInternal, setEntries, getExtensionStateMap] = useStateMap<Type,
 );
 
 /**
+ * Source arguments used when reporting a specification extension problem.
+ *
+ * Source order comes from `context.decoratorTarget`, independently of these
+ * diagnostic targets. Omitted targets fall back to the actual target type.
+ * @public
+ */
+export interface AddExtensionOptions {
+  /** Where to report an invalid or repeated key. */
+  readonly keyTarget?: DiagnosticTarget;
+  /** Where to report a value that cannot be serialized. */
+  readonly valueTarget?: DiagnosticTarget;
+}
+
+/**
+ * Copies JSON while finishing the compiler's scalar marshalling. Unlike the
+ * internal marshalling helper, this public write boundary also receives
+ * JavaScript values, so cycles and non-JSON primitives must be rejected.
+ */
+class ExtensionValueError extends Error {}
+
+function marshalExtensionValue(program: Program, value: unknown): unknown {
+  try {
+    return toPlainValue(program, value);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    throw new ExtensionValueError("The compiler scalar value cannot be serialized.", {
+      cause: error,
+    });
+  }
+}
+
+function copyExtensionValue(
+  program: Program,
+  value: unknown,
+  ancestors = new Set<object>(),
+): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "object" || ancestors.has(value)) {
+    throw new ExtensionValueError("The extension value is not representable as JSON.");
+  }
+
+  ancestors.add(value);
+  try {
+    if ("entityKind" in value && value.entityKind === "Value") {
+      return copyExtensionValue(program, marshalExtensionValue(program, value), ancestors);
+    }
+    if (Array.isArray(value)) {
+      return Array.from(value, (element) => copyExtensionValue(program, element, ancestors));
+    }
+    if (Object.prototype.toString.call(value) !== "[object Object]") {
+      throw new ExtensionValueError("The extension value is not a plain JSON object.");
+    }
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, field]) => field !== undefined)
+        .map(([key, field]) => [key, copyExtensionValue(program, field, ancestors)]),
+    );
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+/**
  * Adds one `x-` specification extension to whichever object the target
  * emits: `info`, a channel, an operation, or a message.
  *
@@ -83,7 +147,45 @@ const [getEntriesInternal, setEntries, getExtensionStateMap] = useStateMap<Type,
  * @public
  */
 export function $extension(context: DecoratorContext, target: Type, key: string, value: unknown) {
-  const keyTarget = context.getArgumentTarget(0) ?? target;
+  addExtension(context, target, key, value, {
+    keyTarget: context.getArgumentTarget(0) ?? target,
+    valueTarget: context.getArgumentTarget(1) ?? target,
+  });
+}
+
+/**
+ * Records one specification extension, using the same rules as `@extension`.
+ *
+ * Companion decorators pass the actual target they received, including a
+ * cloned target during replay. This writer never looks a target up by name
+ * or source node. The context's decorator application supplies source order;
+ * the optional argument targets only control diagnostic locations.
+ *
+ * The key must be `x-` followed by letters, digits, underscores, dots or
+ * hyphens. The value is copied recursively, including any remaining
+ * marshalled TypeSpec scalar values. An unrepresentable value is reported
+ * and dropped. No mutable input object is retained.
+ *
+ * Each call records a whole value, never a deep merge. The emitter reports
+ * repeated keys and keeps the first application in source order, regardless
+ * of whether it used this writer or `@extension`. Placement checks remain
+ * with the emitter; this does not add root or server extension placements.
+ *
+ * @param context - The calling decorator's context
+ * @param target - The actual type whose emitted object carries the extension
+ * @param key - The `x-` prefixed member name
+ * @param value - A plain or marshalled JSON value
+ * @param options - Optional source argument targets for diagnostics
+ * @public
+ */
+export function addExtension(
+  context: DecoratorContext,
+  target: Type,
+  key: string,
+  value: unknown,
+  options: AddExtensionOptions = {},
+): void {
+  const keyTarget = options.keyTarget ?? target;
   if (!EXTENSION_KEY_PATTERN.test(key)) {
     reportDiagnostic(context.program, {
       code: "invalid-extension-key",
@@ -92,14 +194,15 @@ export function $extension(context: DecoratorContext, target: Type, key: string,
     });
     return;
   }
-  const plain = toPlainValue(context.program, value);
-  if (plain === undefined) {
-    // No JSON document holds an undefined member. Recording it would drop the
-    // key while the writer runs, with nothing said about it.
+  let plain: unknown;
+  try {
+    plain = copyExtensionValue(context.program, value);
+  } catch (error) {
+    if (!(error instanceof ExtensionValueError)) throw error;
     reportDiagnostic(context.program, {
       code: "unserializable-extension",
       format: { key },
-      target: context.getArgumentTarget(1) ?? target,
+      target: options.valueTarget ?? target,
     });
     return;
   }
@@ -151,6 +254,9 @@ export function listExtensionTargets(program: Program): [Type, readonly Extensio
  * this reader sees what the document will hold. No clash is reported here;
  * the emitter does that once, while it resolves.
  *
+ * The map and all nested values are copies. Mutating a returned value
+ * cannot change recorded state or subsequent emitted documents.
+ *
  * The name follows the `getExtensions` reader of `@typespec/openapi`.
  *
  * @param program - The program to read the state from
@@ -166,7 +272,7 @@ export function getExtensions(program: Program, target: Type): ReadonlyMap<strin
   const extensions = new Map<string, unknown>();
   for (const entry of entries) {
     if (extensions.has(entry.key)) continue;
-    extensions.set(entry.key, entry.value);
+    extensions.set(entry.key, structuredClone(entry.value));
   }
   return extensions;
 }

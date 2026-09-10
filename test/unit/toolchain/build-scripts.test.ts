@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = new URL("../../../", import.meta.url);
 
 /** Every package the workspace publishes. */
-const PACKAGES = ["tsp-asyncapi-core", "tsp-asyncapi", "tsp-avro"];
+const PACKAGES = ["tsp-asyncapi-core", "tsp-asyncapi", "tsp-avro", "tsp-azure-service-bus"];
 
 /** The manifest of one package. */
 interface Manifest {

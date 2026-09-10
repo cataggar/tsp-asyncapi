@@ -19,6 +19,7 @@ const MANIFESTS = [
   "packages/tsp-asyncapi-core/package.json",
   "packages/tsp-asyncapi/package.json",
   "packages/tsp-avro/package.json",
+  "packages/tsp-azure-service-bus/package.json",
 ];
 
 /** The maps a manifest states its dependencies in. */
