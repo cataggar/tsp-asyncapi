@@ -144,7 +144,8 @@ export function discoverOriginalDocumentDeclarations(program: Program): Document
 type Owns = (type: Type) => boolean;
 type CheckContract = (type: Type, target: Type) => boolean;
 
-function discriminatorSubtypes(program: Program, model: Model): readonly Model[] {
+/** Live transitive subtype closure shared by ownership and replay validation. @internal */
+export function discriminatorSubtypes(program: Program, model: Model): readonly Model[] {
   if (resolveDiscriminator(program, model).kind !== "applies") return [];
   const descendants = new Set<Model>();
   const pending = [...model.derivedModels];

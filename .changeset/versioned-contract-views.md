@@ -18,6 +18,8 @@ fallback lowering after a binary refusal while validating other selected views.
 Retain distinct alias instances through rename rekeying. Scope mutation-time
 decorator diagnostics to selected services and their actual live dependencies
 without removing original compilation diagnostics.
+Traverse reachable discriminator hierarchies transitively through intermediate
+subclasses, sharing the ownership traversal and retaining only live descendants.
 
 Keep standalone Avro record discovery on original declarations, including erased
 alias instances, when another emitter has replayed decorators on versioned clones.

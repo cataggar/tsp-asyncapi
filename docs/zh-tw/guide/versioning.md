@@ -92,6 +92,8 @@ operation 命名衝突仍會回報診斷。
 未選取 service 的 decorator 重播診斷不會使選定 service 失敗。但選定檢視實際參照的
 領域型別，包括 header 及歷史欄位型別，其錯誤仍會回報。Adapter 只限定同步 mutation
 期間的重播診斷範圍，不會移除原始編譯診斷。
+Discriminator 的可達範圍包含所有層級的子型別，即使中間的子型別沒有自行宣告
+discriminator，也不會中斷探索。
 
 ## 相依版本與支援的變更
 

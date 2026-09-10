@@ -101,6 +101,8 @@ is renamed. Normal channel/operation naming collisions are still diagnosed.
 Decorator replay diagnostics from an excluded service do not invalidate the
 selected service. Diagnostics from domain types actually referenced by the
 selected view, including headers and historical property types, remain errors.
+Discriminator reachability includes all descendant levels, even when intermediate
+subclasses do not declare their own discriminator.
 The adapter scopes only synchronous mutation-time replay; original compilation
 diagnostics are preserved.
 

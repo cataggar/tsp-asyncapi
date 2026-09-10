@@ -244,6 +244,103 @@ describe("Integration: versioning review regressions", () => {
     expect(Object.keys(valid.documents)).toEqual(["asyncapi.Outer.v2.yaml"]);
   });
 
+  it.each([false, true])(
+    "validates emitted grandchildren through shared recursive hierarchies (nested discriminator=%s)",
+    async (nested) => {
+      const source = nestedServices(
+        "domain: Child.Domain; again: Child.Domain; shared: Child.Shared;",
+        `@discriminator("kind") model Domain { kind: string; }
+         ${nested ? '@discriminator("variant")' : ""}
+         model Middle extends Domain { ${nested ? 'kind: "middle"; variant: string;' : ""} }
+         model Shared { id: string; }
+         model Variant extends Middle {
+           ${nested ? 'variant: "variant";' : 'kind: "variant";'}
+           ${HISTORICAL_PROPERTY}
+           parent?: Domain;
+           shared: Shared;
+         }`,
+      );
+      const invalid = await emitVersioned(source, {
+        service: "Outer",
+        version: "v1",
+        "file-type": "json",
+      });
+      expect(invalid.outputs).toEqual({});
+      expect(invalid.diagnostics.map(({ code }) => code)).toEqual(["decorator-wrong-target"]);
+      const valid = await emitVersioned(source, {
+        service: "Outer",
+        version: "v2",
+        "file-type": "json",
+      });
+      expectDiagnosticEmpty(valid.diagnostics);
+      const doc = valid.documents["asyncapi.Outer.v2.json"];
+      expect(doc.components?.schemas?.Variant).toMatchObject({
+        allOf: [
+          { $ref: "#/components/schemas/Middle" },
+          { properties: { value: { type: "integer", minimum: 1 } } },
+        ],
+      });
+      for (const ref of referencesIn(doc)) expect(resolveRef(doc, ref)).toBeDefined();
+      const child = listServices(valid.program).find((service) => service.type.name === "Child");
+      const original = child?.type.models.get("Variant")?.properties.get("value");
+      if (original === undefined) throw new Error("Missing source grandchild.");
+      expect(original.type).toMatchObject({ kind: "Scalar", name: "int32" });
+      expect(getMinValue(valid.program, original)).toBe(1);
+    },
+  );
+
+  it("retains errors for directly referenced or selected child grandchildren", async () => {
+    const source = nestedServices(
+      "domain: Child.Variant;",
+      `@discriminator("kind") model Domain { kind: string; }
+       model Middle extends Domain {}
+       model Variant extends Middle { kind: "variant"; ${HISTORICAL_PROPERTY} }`,
+    );
+    for (const service of ["Outer", "Outer.Child"]) {
+      const result = await emitVersioned(source, { service, version: "v1" });
+      expect(result.outputs).toEqual({});
+      expect(result.diagnostics.map(({ code }) => code)).toContain("decorator-wrong-target");
+    }
+  });
+
+  it("does not follow unrelated ordinary-model descendants", async () => {
+    const { documents, diagnostics } = await emitVersioned(
+      nestedServices(
+        "domain: Child.Domain;",
+        `model Domain { id: string; }
+         model Middle extends Domain {}
+         model Variant extends Middle { ${HISTORICAL_PROPERTY} }`,
+      ),
+      { service: "Outer", version: "v1" },
+    );
+    expectDiagnosticEmpty(diagnostics);
+    const schemas = documents["asyncapi.Outer.v1.yaml"].components?.schemas;
+    expect(schemas).toHaveProperty("Domain");
+    expect(schemas).not.toHaveProperty("Middle");
+    expect(schemas).not.toHaveProperty("Variant");
+  });
+
+  it("does not resurrect a removed grandchild after an earlier live snapshot", async () => {
+    const { documents, diagnostics, program } = await emitVersioned(
+      nestedServices(
+        "domain: Child.Domain;",
+        `@discriminator("kind") model Domain { kind: string; }
+         model Middle extends Domain {}
+         @removed(V.v2) model Variant extends Middle {
+           kind: "variant"; @minValue(1) value: int32;
+         }`,
+      ),
+      { service: "Outer" },
+    );
+    expectDiagnosticEmpty(diagnostics);
+    expect(documents["asyncapi.Outer.v1.yaml"].components?.schemas).toHaveProperty("Variant");
+    expect(documents["asyncapi.Outer.v2.yaml"].components?.schemas).not.toHaveProperty("Variant");
+    const child = listServices(program).find((service) => service.type.name === "Child");
+    expect(child?.type.models.get("Middle")?.derivedModels.map((model) => model.name)).toContain(
+      "Variant",
+    );
+  });
+
   it("preserves original compile errors even when they belong to an excluded service", async () => {
     const [{ program }, diagnostics] = await VersioningTester.compileAndDiagnose(
       nestedServices("id: string;", "@message model Event { @minValue(1) value: string; }"),

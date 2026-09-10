@@ -4,7 +4,6 @@
  */
 import {
   compilerAssert,
-  getDiscriminator,
   getService,
   getNamespaceFullName,
   isTemplateInstance,
@@ -28,7 +27,7 @@ import { createRekeyableMap } from "@typespec/compiler/utils";
 import { getVersioningMutators, resolveVersions } from "@typespec/versioning";
 import { getHeadersModel, reportDiagnostic } from "tsp-asyncapi-core";
 import { discoverDocumentDeclarations, type EffectiveDocumentGraph } from "./document-context.js";
-import { discoverOriginalDocumentDeclarations } from "./service-context.js";
+import { discriminatorSubtypes, discoverOriginalDocumentDeclarations } from "./service-context.js";
 import { serviceOwner, type DocumentDeclarations } from "tsp-asyncapi-core/unstable";
 
 /** One root version, a dependency-only view, or an unchanged service. @internal */
@@ -326,7 +325,7 @@ function activeContractTypes(
       if (add(model) === ListenerFlow.NoRecursion) return ListenerFlow.NoRecursion;
       const headers = getHeadersModel(program, model);
       if (headers !== undefined) pending.push(headers);
-      if (getDiscriminator(program, model) !== undefined) pending.push(...model.derivedModels);
+      pending.push(...discriminatorSubtypes(program, model));
       return undefined;
     },
     operation(operation) {
