@@ -11,16 +11,18 @@
  * the compiler.
  *
  * This package declares the input language and emits nothing. So the API is the
- * two things a consumer needs in order to read what an author declared: the
- * library definition, and a reader for each kind of decorator state.
+ * library definition, readers for decorator state, and the generic extension
+ * writer companion decorators use.
  */
 
 export { $lib, createDiagnostic, reportDiagnostic, LIBRARY_NAME, PACKAGE_NAME } from "./lib.js";
 
-// Readers for the state the decorators record. A tool built on top of this
-// emitter uses these; applying a decorator is the compiler's job.
+// Readers for decorator state and the companion extension writer. Applying
+// the TypeSpec decorators themselves remains the compiler's job.
 export {
+  addExtension,
   getAsyncTags,
+  getBindings,
   getChannel,
   getContentType,
   getCorrelationId,
@@ -44,6 +46,7 @@ export {
   isOneOf,
   listChannels,
   listMessages,
+  type AddExtensionOptions,
   type AsyncAPIInfoState,
   type AsyncTagExternalDocs,
   type AsyncTagMetadata,
@@ -51,6 +54,7 @@ export {
   type AsyncAPISecuritySchemeState,
   type AsyncAPIServerState,
   type AsyncAPIServerVariableState,
+  type BindingState,
   type ChannelState,
   type ChannelTarget,
   type CorrelationIdState,

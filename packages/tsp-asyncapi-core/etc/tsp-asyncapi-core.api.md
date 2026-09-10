@@ -6,9 +6,11 @@
 
 import { AugmentDecoratorStatementNode } from '@typespec/compiler/ast';
 import { CallableMessage } from '@typespec/compiler';
+import { DecoratorContext as DecoratorContext_2 } from '@typespec/compiler';
 import { DecoratorExpressionNode } from '@typespec/compiler/ast';
 import { Diagnostic } from '@typespec/compiler';
 import { DiagnosticReport } from '@typespec/compiler';
+import { DiagnosticTarget } from '@typespec/compiler';
 import { Enum } from '@typespec/compiler';
 import { Interface } from '@typespec/compiler';
 import { Model } from '@typespec/compiler';
@@ -423,6 +425,15 @@ readonly default: "This anonymous type refers back to itself with no named type 
 }, Record<string, any>, never>;
 
 // @public
+export function addExtension(context: DecoratorContext_2, target: Type, key: string, value: unknown, options?: AddExtensionOptions): void;
+
+// @public
+export interface AddExtensionOptions {
+    readonly keyTarget?: DiagnosticTarget;
+    readonly valueTarget?: DiagnosticTarget;
+}
+
+// @public
 export const AMQP_BINDING_VERSION = "0.3.0";
 
 // @public
@@ -546,6 +557,13 @@ export interface AsyncTagState extends AsyncTagMetadata {
 //
 // @internal
 export type BindingRenderer = "verbatim" | "kafka" | "websocket" | "mqtt" | "http" | "amqp" | "nats" | "pulsar" | "googlepubsub" | "sqs" | "anypointmq" | "jms" | "ibmmq" | "solace";
+
+// @public
+export interface BindingState {
+    readonly config: Readonly<Record<string, unknown>>;
+    readonly protocol: string;
+    readonly scope: "any" | "server" | "channel" | "operation" | "message";
+}
 
 // Warning: (ae-forgotten-export) The symbol "ExternalDocumentationObject" needs to be exported by the entry point index.d.ts
 //
@@ -1398,6 +1416,9 @@ export function fallbackDeclarationName(program: Program, type: Model | Union): 
 
 // @public
 export function getAsyncTags(program: Program, target: Type): AsyncTagState[];
+
+// @public
+export function getBindings(program: Program, target: Type): readonly BindingState[];
 
 // @public
 export function getChannel(program: Program, target: ChannelTarget): ChannelState | undefined;

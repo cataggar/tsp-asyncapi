@@ -83,6 +83,7 @@ export default defineConfig({
             text: "Reference",
             items: [
               { text: "Emitter Options", link: "/reference/emitter-options" },
+              { text: "Azure Service Bus", link: "/reference/service-bus" },
               {
                 text: "Decorators",
                 collapsed: false,
@@ -185,6 +186,7 @@ export default defineConfig({
                 text: "Emitter 選項",
                 link: "/zh-tw/reference/emitter-options",
               },
+              { text: "Azure Service Bus", link: "/zh-tw/reference/service-bus" },
               {
                 text: "Decorator",
                 collapsed: false,

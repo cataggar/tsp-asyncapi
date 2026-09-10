@@ -38,7 +38,7 @@ export {
   type AsyncTagMetadata,
   type AsyncTagState,
 } from "./document/async-tag.js";
-export { $extension, getExtensions } from "./extension.js";
+export { $extension, addExtension, getExtensions, type AddExtensionOptions } from "./extension.js";
 export { $oneOf, isOneOf } from "./schemas/one-of.js";
 export {
   $jsonSchemaExtension,
@@ -82,6 +82,7 @@ export {
   type ReplyAddressState,
 } from "./operations/reply.js";
 export { $binding } from "./bindings/binding.js";
+export { getBindings, type BindingState } from "./bindings/state.js";
 export { $kafkaChannel, type KafkaChannelBindingConfig } from "./bindings/kafka/channel.js";
 export { $kafkaMessage, type KafkaMessageBindingConfig } from "./bindings/kafka/message.js";
 export { $kafkaOperation, type KafkaOperationBindingConfig } from "./bindings/kafka/operation.js";

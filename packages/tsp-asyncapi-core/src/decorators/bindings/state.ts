@@ -16,7 +16,12 @@
 
 import { DecoratorContext, DiagnosticTarget, Program, Type } from "@typespec/compiler";
 import { useStateMap } from "@typespec/compiler/utils";
-import { SourcePosition, isSameApplication, sourcePositionOf } from "../../source-order.js";
+import {
+  SourcePosition,
+  bySourcePosition,
+  isSameApplication,
+  sourcePositionOf,
+} from "../../source-order.js";
 
 const bindingStateKey = Symbol.for("tsp-asyncapi.binding");
 
@@ -87,6 +92,51 @@ export interface BindingEntry extends SourcePosition {
 }
 
 const [getEntries, setEntries, getEntryMap] = useStateMap<Type, BindingEntry[]>(bindingStateKey);
+
+/**
+ * A read-only snapshot of one recorded binding application.
+ *
+ * The config is the recorded JSON, before a protocol renderer adds any
+ * default binding version. An explicitly authored `bindingVersion` remains
+ * present. No compiler target, diagnostic node or renderer is exposed.
+ * @public
+ */
+export interface BindingState {
+  /** The member name inside the emitted Bindings Object. */
+  readonly protocol: string;
+  /**
+   * The declared placement. `any` means whichever binding-bearing objects
+   * the target emits. A namespace's `server` and `any` bindings apply to
+   * every server it declares; there is no per-server configuration.
+   */
+  readonly scope: "any" | "server" | "channel" | "operation" | "message";
+  /** A recursive copy of the recorded configuration. */
+  readonly config: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Reads all binding applications on the actual target, in source order.
+ *
+ * Duplicate protocols are retained for inspection. This reader neither
+ * resolves placements nor reports collisions; those remain emitter checks.
+ * The returned list, entries and nested configs are independent copies.
+ *
+ * To inspect a server's bindings, read its declaring namespace and consider
+ * `server` and `any` entries. All servers of that namespace share the same
+ * declared bindings.
+ *
+ * @param program - The program to read the state from
+ * @param target - The actual type carrying the binding decorators
+ * @returns The recorded bindings, or an empty list for an undecorated type
+ * @public
+ */
+export function getBindings(program: Program, target: Type): readonly BindingState[] {
+  return [...(getEntries(program, target) ?? [])].sort(bySourcePosition(program)).map((entry) => ({
+    protocol: entry.protocol,
+    scope: entry.level,
+    config: structuredClone(entry.config) as Readonly<Record<string, unknown>>,
+  }));
+}
 
 /**
  * Records one binding application.

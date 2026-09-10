@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = new URL("../../../", import.meta.url);
 
 /** Every package the workspace publishes. */
-const PACKAGES = ["tsp-asyncapi-core", "tsp-asyncapi", "tsp-avro"];
+const PACKAGES = ["tsp-asyncapi-core", "tsp-asyncapi", "tsp-avro", "tsp-azure-service-bus"];
 
 /** The manifest of one package. */
 interface Manifest {
@@ -45,14 +45,25 @@ describe("Unit: the provenance of the build output", () => {
     expect(sourceOf("src/lower/schemas.d.ts")).toBe("src/lower/schemas.ts");
     expect(sourceOf("src/lower/schemas.js.map")).toBe("src/lower/schemas.ts");
     expect(sourceOf("src/lower/schemas.d.ts.map")).toBe("src/lower/schemas.ts");
+    expect(sourceOf("schema/0.1.0.json")).toBe("schema/0.1.0.json");
 
-    // A file outside `src` has no source to come from. The rollup of an API
+    // A file outside `src` and `schema` has no source to come from. The rollup of an API
     // report is one, and nothing in the manifest points at it.
     expect(sourceOf("tsp-asyncapi-core.d.ts")).toBeUndefined();
   });
 
   it.each(PACKAGES)("emits no file of %s that has no source", async (name) => {
-    const sources = new Set(await filesIn(new URL(`packages/${name}/src/`, ROOT)));
+    const sources = new Set(
+      (
+        await Promise.all(
+          ["src", "schema"].map(async (directory) =>
+            (await filesIn(new URL(`packages/${name}/${directory}/`, ROOT))).map(
+              (file) => `${directory}/${file}`,
+            ),
+          ),
+        )
+      ).flat(),
+    );
     const emitted = await filesIn(new URL(`packages/${name}/dist/`, ROOT));
 
     // A build that never ran would also report no orphan.
@@ -62,7 +73,7 @@ describe("Unit: the provenance of the build output", () => {
     const orphans = emitted.filter((file) => {
       if (WRITTEN_BY_API_EXTRACTOR.has(file)) return false;
       const source = sourceOf(file);
-      return source === undefined || !sources.has(source.slice("src/".length));
+      return source === undefined || !sources.has(source);
     });
 
     expect(orphans, `${name} carries output no source file explains`).toEqual([]);
@@ -83,7 +94,7 @@ describe("Unit: the provenance of the build output", () => {
 
     // `prebuild` runs before any command that starts `build`, so this
     // covers `pnpm -r build` and a filtered build alike. The root's own
-    // `tsc -b` build removes all three packages' output via `check:package`.
+    // `tsc -b` build removes all packages' output via `check:package`.
     expect(manifest.scripts.prebuild).toBe("pnpm run clean");
   });
 
@@ -169,6 +180,7 @@ describe("Unit: the provenance of the build output", () => {
  * @returns The source path, or undefined when the file comes from no source
  */
 function sourceOf(file: string): string | undefined {
+  if (file.startsWith("schema/") && file.endsWith(".json")) return file;
   if (!file.startsWith("src/")) return undefined;
   const emitted = file.endsWith(".map") ? file.slice(0, -".map".length) : file;
   if (emitted.endsWith(".d.ts")) return `${emitted.slice(0, -".d.ts".length)}.ts`;
