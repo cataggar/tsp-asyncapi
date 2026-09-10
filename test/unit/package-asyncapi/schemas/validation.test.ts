@@ -54,8 +54,8 @@ describe("Unit: Schemas — validation keywords and extensions", () => {
     });
   });
 
-  it("lets an extension key override a keyword this emitter already produces for that model", async () => {
-    const { builder, M } = await compileSchemas(t.code`
+  it("refuses an invalid extension value instead of replacing the generated type", async () => {
+    const { builder, M, program } = await compileSchemas(t.code`
       @AsyncAPI.jsonSchemaExtension("type", "override")
       model ${t.model("M")} {
         name: string;
@@ -64,7 +64,8 @@ describe("Unit: Schemas — validation keywords and extensions", () => {
     builder.buildSchema(M);
 
     const schema = builder.getSchemas().M;
-    expect(schema.type).toBe("override");
+    expect(schema.type).toBe("object");
+    expect(diagnosticsWith(program.diagnostics, "invalid-schema-extension")).toHaveLength(1);
   });
 
   it("should map @minLength/@maxLength on a property to minLength/maxLength", async () => {

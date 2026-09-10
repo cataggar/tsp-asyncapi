@@ -36,8 +36,12 @@ extern dec jsonSchemaExtension(target: Model | ModelProperty, key: valueof strin
 
 在目標的輸出 schema 加一組原始 key/value。沒有專屬 decorator 時用它。可重複套用，每次加一組。extension key 會蓋過 emitter 自己產生的同名關鍵字。
 
+改變驗證 keyword 的覆寫會警告，已知 keyword 值不合法時回報 error。較新 draft 的
+keyword 保留但警告 `unsupported-schema-keyword`，不當成 native draft-07 限制。
+詳見[modifier](../../guide/schema-conversion/modifiers)。
+
 ```typespec
-@jsonSchemaExtension("unevaluatedProperties", false)
+@jsonSchemaExtension("additionalProperties", false)
 model Strict {
   id: string;
 }
@@ -51,7 +55,7 @@ Strict:
       type: string
   required:
     - id
-  unevaluatedProperties: false
+  additionalProperties: false
 ```
 
 ## schema key 怎麼決定

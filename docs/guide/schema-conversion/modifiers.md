@@ -89,12 +89,15 @@ JSON Schema has more keywords than this emitter gives dedicated decorators
 for. Write the missing ones with `@jsonSchemaExtension` as a key/value pair.
 
 It is repeatable, one pair per application, and it wins over any keyword the
-emitter would produce itself.
+emitter would produce itself. Replacing a generated validation keyword reports
+`schema-extension-overrides-contract`; an identical value or harmless annotation
+does not. Known malformed keyword values report `invalid-schema-extension`.
+These bounded checks are not a complete schema validator.
 
 ### Example
 
 ```typespec
-@jsonSchemaExtension("unevaluatedProperties", false)
+@jsonSchemaExtension("additionalProperties", false)
 model Strict {
   id: string;
 }
@@ -108,5 +111,12 @@ Strict:
       type: string
   required:
     - id
-  unevaluatedProperties: false
+  additionalProperties: false
 ```
+
+This closure example has no `allOf`. Closing an inherited schema needs a consumer
+policy aware of every declared field. Later-draft keywords such as
+`unevaluatedProperties`, `dependentRequired` and `prefixItems` remain authored
+extensions but report `unsupported-schema-keyword`: native draft-07 does not
+enforce them. Arbitrary annotation extensions and intentional `$id` identifiers
+remain pass-through; they do not gain validation semantics.

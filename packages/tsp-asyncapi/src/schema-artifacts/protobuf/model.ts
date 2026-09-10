@@ -43,6 +43,7 @@ import {
   protoMessageNameOf,
   resolveProtobufPackage,
 } from "tsp-asyncapi-core/unstable";
+import { unsupportedProtobufMetadata } from "./metadata.js";
 
 /**
  * One payload: the proto3 file that describes one model.
@@ -210,6 +211,7 @@ interface Walk {
   readonly declared: Map<Model | Enum, ProtoDeclaration | undefined>;
   /** Which declaration took each rendered name, so a clash is seen. */
   readonly claimed: Map<string, Model | Enum>;
+  readonly checkedMetadata: Map<Type, boolean>;
 }
 
 /**
@@ -254,6 +256,7 @@ export function buildPayloadModel(program: Program, root: Model): ProtoPayloadMo
     packageLabel: found.name ?? getTypeName(found.namespace),
     declared: new Map(),
     claimed: new Map(),
+    checkedMetadata: new Map(),
   };
   const rootName = visitModel(walk, root);
   if (rootName === undefined) return undefined;
@@ -286,6 +289,22 @@ function refuse(walk: Walk, target: Type, construct: string): void {
   });
 }
 
+function checkMetadata(walk: Walk, type: Type): boolean {
+  const previous = walk.checkedMetadata.get(type);
+  if (previous !== undefined) return previous;
+  const unsupported = unsupportedProtobufMetadata(walk.program, type);
+  for (const metadata of unsupported) {
+    refuse(
+      walk,
+      type,
+      `${getTypeName(type)} carrying ${metadata}; declare a separate binary wire type without this metadata`,
+    );
+  }
+  const supported = unsupported.length === 0;
+  walk.checkedMetadata.set(type, supported);
+  return supported;
+}
+
 /**
  * Adds one model to the closure and returns the name to refer to it by.
  *
@@ -297,6 +316,15 @@ function refuse(walk: Walk, target: Type, construct: string): void {
  * @param model - The model to add
  */
 function visitModel(walk: Walk, model: Model): string | undefined {
+  if (!checkMetadata(walk, model)) return undefined;
+  if (model.baseModel !== undefined) {
+    refuse(walk, model, `model '${model.name}' with inheritance whose base fields would be lost`);
+    return undefined;
+  }
+  if (model.indexer !== undefined) {
+    refuse(walk, model, `model '${model.name}' with an index signature whose values would be lost`);
+    return undefined;
+  }
   if (model.name === "") {
     refuse(walk, model, "an anonymous model");
     return undefined;
@@ -316,6 +344,17 @@ function visitModel(walk: Walk, model: Model): string | undefined {
 
   const fields: ProtoField[] = [];
   for (const property of model.properties.values()) {
+    const index = protobufFieldIndexOf(walk.program, property);
+    if (
+      reserved.names.includes(property.name) ||
+      (typeof index === "number" &&
+        reserved.numbers.some((entry) =>
+          typeof entry === "number" ? entry === index : index >= entry[0] && index <= entry[1],
+        ))
+    ) {
+      refuse(walk, property, `property '${property.name}' reusing a reserved field name or number`);
+      return undefined;
+    }
     const field = fieldOf(walk, property);
     if (field === undefined) return undefined;
     fields.push(field);
@@ -464,6 +503,7 @@ function claimName(walk: Walk, type: Model | Enum, name: string): boolean {
  * @param property - The model property to convert
  */
 function fieldOf(walk: Walk, property: ModelProperty): ProtoField | undefined {
+  if (!checkMetadata(walk, property) || !checkMetadata(walk, property.type)) return undefined;
   const index = protobufFieldIndexOf(walk.program, property);
   if (!isFieldNumber(index)) {
     refuse(walk, property, `property '${property.name}' with no @Protobuf.field number`);
@@ -573,6 +613,7 @@ function mapTypeOf(walk: Walk, map: Model, property: ModelProperty): string | un
  * @param property - The property, which a diagnostic points at
  */
 function typeNameOf(walk: Walk, type: Type, property: ModelProperty): string | undefined {
+  if (!checkMetadata(walk, type)) return undefined;
   if (isProtobufExternRef(walk.program, type)) {
     refuse(walk, property, `property '${property.name}' of an @Protobuf.externRef type`);
     return undefined;
@@ -618,11 +659,13 @@ function typeNameOf(walk: Walk, type: Type, property: ModelProperty): string | u
  */
 function scalarNameOf(walk: Walk, scalar: Scalar): string | undefined {
   let current: Scalar | undefined = scalar;
+  let name: string | undefined;
   while (current !== undefined) {
-    const name = PROTO_SCALARS.get(qualifiedNameOf(current));
-    if (name !== undefined) return name;
+    if (!checkMetadata(walk, current)) return undefined;
+    name ??= PROTO_SCALARS.get(qualifiedNameOf(current));
     current = current.baseScalar;
   }
+  if (name !== undefined) return name;
   reportDiagnostic(walk.program, {
     code: "protobuf-artifact-unavailable",
     messageId: "unknown-scalar",

@@ -81,3 +81,11 @@ JSON Schema 有 `uniqueItems`，但 TypeSpec 沒有對應的 decorator，無法�
 
 診斷代碼分別是 [`unrepresentable-numeric-constraint`](../../reference/diagnostics#unrepresentable-numeric-constraint)
 與 [`unsupported-temporal-range-constraint`](../../reference/diagnostics#unsupported-temporal-range-constraint)。
+
+Encoding 可能改變 constraint 的意義。例如 `@minValue(1) @encode(string) value: int32`
+以文字傳輸，JSON 的數字 `minimum` 不會限制它。這類關鍵字（包含 scalar `allOf`
+繼承鏈中的限制）會省略並回報 `unsupported-encoded-constraint`。Wire type 仍可使用；
+來源範圍需要應用程式驗證或明確手寫的 wire schema。
+
+實際接受／拒絕的邊界見證，以及 format assertion 與 annotation 的差異，
+請見[契約忠實度與演進](./contract-fidelity)。

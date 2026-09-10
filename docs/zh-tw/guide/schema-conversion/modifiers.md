@@ -85,10 +85,14 @@ JSON Schema 的關鍵字很多，這個 emitter 沒有每個都給專屬 decorat
 
 可以重複標，一次加一組。同名時它蓋過 emitter 自己算出來的值。
 
+覆寫產生的驗證 keyword 會警告 `schema-extension-overrides-contract`；相同值或
+純 annotation 不警告。已知 keyword 值不合法時回報 `invalid-schema-extension`。
+這些有限檢查不是完整 schema 驗證器。
+
 ### 範例
 
 ```typespec
-@jsonSchemaExtension("unevaluatedProperties", false)
+@jsonSchemaExtension("additionalProperties", false)
 model Strict {
   id: string;
 }
@@ -102,5 +106,10 @@ Strict:
       type: string
   required:
     - id
-  unevaluatedProperties: false
+  additionalProperties: false
 ```
+
+此範例沒有 `allOf`；繼承 schema 的封閉政策必須知道所有宣告欄位。
+較新 draft 的 `unevaluatedProperties`、`dependentRequired`、`prefixItems` 保留原值，
+但警告 `unsupported-schema-keyword`，因 native draft-07 不執行這些限制。
+自訂 annotation 與刻意指定的 `$id` 仍可透傳，不因此具有驗證語意。

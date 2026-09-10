@@ -84,3 +84,14 @@ Two cases drop the keyword **with a warning** rather than emit a wrong value:
 
 The codes are [`unrepresentable-numeric-constraint`](../../reference/diagnostics#unrepresentable-numeric-constraint)
 and [`unsupported-temporal-range-constraint`](../../reference/diagnostics#unsupported-temporal-range-constraint).
+
+Encoding can change which constraints are meaningful. For example,
+`@minValue(1) @encode(string) value: int32` travels as text: a JSON numeric
+`minimum` would not restrict it. Such constraints are omitted with
+`unsupported-encoded-constraint`, including constraints inherited through
+scalar `allOf` chains. The wire type remains usable; source ranges require
+application validation or an explicitly authored wire schema.
+
+See [Contract fidelity and evolution](./contract-fidelity) for actual accepted
+and rejected boundary witnesses and the distinction between format assertions
+and annotations.

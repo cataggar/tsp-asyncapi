@@ -79,6 +79,7 @@ export const $lib = createTypeSpecLibrary({
         duplicate: paramMessage`"${"name"}" and "${"other"}" both take the Avro name "${"fullName"}". An Avro schema names each type once, so the second would read as the first.`,
         emptyUnion: paramMessage`The union "${"name"}" holds no branch. An Avro union is a list a reader picks one branch from, and an empty list leaves nothing to pick.`,
         notRecord: paramMessage`The model "${"name"}" did not translate into an Avro record. @record asks for a record, and nothing else can be written in its place.`,
+        metadata: paramMessage`"${"name"}" carries ${"metadata"}, which generated Avro 1.9 cannot preserve. Declare a separate binary wire type without this metadata, using @Avro.logicalType for supported logical annotations, or supply an authored schema with an explicit application validation policy.`,
       },
     },
     "aliases-target": {
@@ -125,7 +126,7 @@ export const $lib = createTypeSpecLibrary({
     "unknown-logical-type": {
       severity: "error",
       messages: {
-        default: paramMessage`"${"name"}" is not a logical type the Avro specification defines. The specification defines ${"known"}.`,
+        default: paramMessage`"${"name"}" is not a logical type Avro 1.9 defines. This emitter supports ${"known"}. Use a supported annotation, or an authored schema for a newer dialect.`,
       },
     },
     "logical-type-mismatch": {

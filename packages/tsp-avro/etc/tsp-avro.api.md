@@ -51,6 +51,7 @@ readonly fixedFields: CallableMessage<["name"]>;
 readonly duplicate: CallableMessage<["name", "other", "fullName"]>;
 readonly emptyUnion: CallableMessage<["name"]>;
 readonly notRecord: CallableMessage<["name"]>;
+readonly metadata: CallableMessage<["name", "metadata"]>;
 };
 "aliases-target": {
 readonly default: CallableMessage<["name"]>;

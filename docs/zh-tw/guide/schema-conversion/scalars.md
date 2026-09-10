@@ -7,11 +7,15 @@ description: "本頁列出每個內建 scalar 對應的 type 與 format，以及
 
 scalar 是單一個值：字串、數字、布林值、時間。model 有屬性，scalar 沒有。
 
-每個 TypeSpec scalar 對應一個 JSON Schema 的 `type`。JSON Schema 另外有 `format`
+支援的 TypeSpec scalar 對應一個 JSON Schema 的 `type`。JSON Schema 另外有 `format`
 可以標示更精確的種類（例如 `int32`、`date-time`），對得上的就一併寫出。
 
 具名 scalar 跟具名 model 一樣：先在 `components.schemas` 定義一次，其他地方用
 `$ref` 引用。
+
+沒有支援的 base 或 wire encoding 的 root scalar 仍產生 `{}`，但每份文件對同一
+root declaration 回報一次 `unmapped-schema-scalar`。請繼承支援的 scalar 或指定
+wire encoding；刻意接受任意值時使用 `unknown`。判斷前會先考慮最終 encoding。
 
 ## 內建 scalar
 

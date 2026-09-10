@@ -67,6 +67,34 @@ describe("Unit: scoped artifact inputs", () => {
     expect(Object.keys(result.outputs)).toEqual(["asyncapi.A.yaml"]);
   });
 
+  it.each([false, true])(
+    "withholds every service without lowering a refused binary fallback (refused first=%s)",
+    async (refusedFirst) => {
+      const sources = [
+        `@service @Avro.avroNamespace("valid") namespace Valid {
+          @message @Avro.avroRecord model Event { value: string; }
+        }`,
+        `@service @Avro.avroNamespace("refused") namespace Refused {
+          @message @Avro.avroRecord model Event {
+            @visibility(Lifecycle.Read) value: string;
+          }
+        }`,
+      ];
+      if (refusedFirst) sources.reverse();
+      const [result, diagnostics] = await createLibraryTester("tsp-avro")
+        .emit(PACKAGE_NAME, { "preview-features": ["avro"], "file-type": "json" })
+        .compileAndDiagnose(sources.join("\n"));
+
+      expect(result.outputs).toEqual({});
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
+        code: "tsp-asyncapi/avro-artifact-unavailable",
+        severity: "error",
+      });
+      expect(diagnostics[0].message).toContain("restricted lifecycle visibility");
+    },
+  );
+
   it.each([
     {
       id: "protobuf",

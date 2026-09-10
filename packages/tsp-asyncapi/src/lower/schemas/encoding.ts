@@ -88,6 +88,16 @@ function naturalScalarShape(scalar: Scalar): SchemaObject {
   return scalar.baseScalar ? naturalScalarShape(scalar.baseScalar) : {};
 }
 
+/** Read the effective scalar wire type without rebuilding or mutating its shared schema. */
+function scalarWireShape(program: Program, scalar: Scalar): SchemaObject {
+  const encodeData = getEncode(program, scalar);
+  if (encodeData !== undefined) return naturalScalarShape(encodeData.type);
+  if (!isBuiltinScalar(scalar) && scalar.baseScalar !== undefined) {
+    return scalarWireShape(program, scalar.baseScalar);
+  }
+  return naturalScalarShape(scalar);
+}
+
 /**
  * Returns the type the encoding is resolved against.
  *
@@ -119,9 +129,16 @@ function encodeShape(
   schema: SchemaObject,
   encodeData: EncodeData,
   declared: Scalar | undefined,
+  target: Scalar | ModelProperty,
+  diagnostics: SchemaDiagnostics,
 ): SchemaObject {
-  const encoded: SchemaObject = { ...schema };
   const targetShape = naturalScalarShape(encodeData.type);
+  const encoded = filterEncodedConstraints(schema, targetShape, target, diagnostics);
+  if (encoded.allOf !== undefined) {
+    encoded.allOf = encoded.allOf.map((branch) =>
+      "$ref" in branch ? branch : encodeShape(branch, encodeData, declared, target, diagnostics),
+    );
+  }
   encoded.type = targetShape.type;
   if (targetShape.type !== "array") {
     delete encoded.items;
@@ -134,6 +151,95 @@ function encodeShape(
     delete encoded.format;
   }
   return encoded;
+}
+
+const CONSTRAINT_DOMAINS = new Map<string, readonly string[]>(
+  Object.entries({
+    minimum: ["number", "integer"],
+    maximum: ["number", "integer"],
+    exclusiveMinimum: ["number", "integer"],
+    exclusiveMaximum: ["number", "integer"],
+    multipleOf: ["number", "integer"],
+    minLength: ["string"],
+    maxLength: ["string"],
+    pattern: ["string"],
+    minItems: ["array"],
+    maxItems: ["array"],
+    uniqueItems: ["array"],
+  }),
+);
+
+/** Constraints describe source values; copying them onto another wire type is not preservation. */
+export function filterEncodedConstraints(
+  schema: SchemaObject,
+  wireShape: SchemaObject,
+  target: Scalar | ModelProperty,
+  diagnostics: SchemaDiagnostics,
+  program?: Program,
+): SchemaObject {
+  const wireTypes = wireDomains(
+    wireShape,
+    program === undefined ? undefined : { program, type: declaredTypeOf(target) },
+  );
+  if (wireTypes === undefined) return { ...schema };
+  return Object.fromEntries(
+    Object.entries(schema).filter(([keyword]) => {
+      const domain = CONSTRAINT_DOMAINS.get(keyword);
+      if (domain === undefined || [...wireTypes].some((type) => domain.includes(type))) return true;
+      diagnostics.reportOnce(
+        {
+          code: "unsupported-encoded-constraint",
+          target,
+          format: { keyword, wireType: [...wireTypes].join(" | ") },
+        },
+        keyword,
+      );
+      return false;
+    }),
+  );
+}
+
+interface WireSource {
+  readonly program: Program;
+  readonly type: Type;
+}
+
+/** Only known scalar references are resolved; unknown domains remain conservative. */
+function wireDomains(schema: SchemaObject, source?: WireSource): ReadonlySet<string> | undefined {
+  if (schema.$ref !== undefined) {
+    return source?.type.kind === "Scalar"
+      ? wireDomains(scalarWireShape(source.program, source.type))
+      : undefined;
+  }
+  if (schema.type !== undefined) {
+    return new Set(Array.isArray(schema.type) ? schema.type : [schema.type]);
+  }
+  const alternatives = schema.anyOf ?? schema.oneOf;
+  if (alternatives !== undefined) {
+    return unionWireDomains(alternatives, source);
+  }
+  for (const branch of schema.allOf ?? []) {
+    const domain = wireDomains(branch, source);
+    if (domain !== undefined) return domain;
+  }
+  return undefined;
+}
+
+function unionWireDomains(
+  branches: readonly SchemaObject[],
+  source?: WireSource,
+): ReadonlySet<string> | undefined {
+  const variants = source?.type.kind === "Union" ? [...source.type.variants.values()] : [];
+  const domains = branches.map((branch, index) =>
+    wireDomains(
+      branch,
+      source !== undefined && variants.length === branches.length
+        ? { program: source.program, type: variants[index].type }
+        : undefined,
+    ),
+  );
+  if (domains.some((domain) => domain === undefined)) return undefined;
+  return new Set(domains.flatMap((domain) => (domain === undefined ? [] : [...domain])));
 }
 
 /**
@@ -304,6 +410,7 @@ function encodeUnion(
   schema: SchemaObject,
   encodeData: EncodeData,
   diagnostics: SchemaDiagnostics,
+  target: Scalar | ModelProperty,
 ): SchemaObject {
   const variants = [...union.variants.values()];
   for (const keyword of UNION_KEYWORDS) {
@@ -318,7 +425,7 @@ function encodeUnion(
       }
       const shape =
         "$ref" in branch ? buildScalarShapeWithDocs(program, diagnostics, variant) : branch;
-      return encodeShape(shape, encodeData, variant);
+      return encodeShape(shape, encodeData, variant, target, diagnostics);
     });
     return { ...schema, [keyword]: encoded };
   }
@@ -350,7 +457,13 @@ export function applyEncoding(
 
   const declared = declaredTypeOf(target);
   if (declared.kind === "Union") {
-    return encodeUnion(program, declared, schema, encodeData, diagnostics);
+    return encodeUnion(program, declared, schema, encodeData, diagnostics, target);
   }
-  return encodeShape(schema, encodeData, declared.kind === "Scalar" ? declared : undefined);
+  return encodeShape(
+    schema,
+    encodeData,
+    declared.kind === "Scalar" ? declared : undefined,
+    target,
+    diagnostics,
+  );
 }

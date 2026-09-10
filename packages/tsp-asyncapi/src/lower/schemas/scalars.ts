@@ -18,7 +18,7 @@ import { JSON_SCHEMA_TYPE, SCHEMA_FORMAT, isGlobalTypeSpecNamespace } from "tsp-
 import { SchemaDiagnostics } from "./diagnostics.js";
 import { DeclarationRegistry } from "./declarations.js";
 import { buildValidationKeywords, withDocs } from "./annotations.js";
-import { applyEncoding } from "./encoding.js";
+import { applyEncoding, filterEncodedConstraints } from "./encoding.js";
 
 /**
  * Maps built-in scalars and intrinsics to their AsyncAPI shape, and builds
@@ -224,6 +224,11 @@ export function buildScalarSchema(
   diagnostics: SchemaDiagnostics,
   scalar: Scalar,
 ): SchemaObject | ReferenceObject {
+  const build = () => {
+    const shape = buildScalarShapeWithDocs(program, diagnostics, scalar);
+    reportUnmappedScalar(diagnostics, scalar, shape);
+    return shape;
+  };
   // TypeSpec's built-in scalars carry their own standard-library doc
   // comments, such as "A sequence of textual characters" for `string`.
   // Surfacing those on every plain `string`/`int32` field would flood the
@@ -233,10 +238,32 @@ export function buildScalarSchema(
   // scalar is a named declaration, so it registers like any other one,
   // matching how `@typespec/openapi3` treats a scalar declaration.
   if (isBuiltinScalar(scalar)) {
-    return buildScalarShapeWithDocs(program, diagnostics, scalar);
+    return build();
   }
-  return declarations.register(scalar, () =>
-    buildScalarShapeWithDocs(program, diagnostics, scalar),
+  return declarations.register(scalar, build);
+}
+
+/** Diagnose only the final wire shape, not a base before a derived encoding applies. */
+export function reportUnmappedScalar(
+  diagnostics: SchemaDiagnostics,
+  scalar: Scalar,
+  shape: SchemaObject,
+): void {
+  if (hasWireShape(shape)) return;
+  let root = scalar;
+  while (root.baseScalar) root = root.baseScalar;
+  diagnostics.reportOnce({
+    code: "unmapped-schema-scalar",
+    target: root,
+    format: { name: root.name },
+  });
+}
+
+function hasWireShape(shape: SchemaObject): boolean {
+  return (
+    shape.type !== undefined ||
+    shape.$ref !== undefined ||
+    (shape.allOf?.some(hasWireShape) ?? false)
   );
 }
 
@@ -270,9 +297,15 @@ export function buildScalarShapeWithDocs(
     // intent. It must still be read back here. `@@encode` reaches a
     // built-in the same way and changes the `type`/`format` itself, so it
     // is applied first; an explicit `@format` merged in after still wins.
+    const encoded = applyEncoding(program, scalar, shape, diagnostics);
     return {
-      ...applyEncoding(program, scalar, shape, diagnostics),
-      ...buildValidationKeywords(program, scalar, diagnostics),
+      ...encoded,
+      ...filterEncodedConstraints(
+        buildValidationKeywords(program, scalar, diagnostics),
+        encoded,
+        scalar,
+        diagnostics,
+      ),
     };
   }
   // A derived, user-declared scalar: recurse to the base scalar's shape,

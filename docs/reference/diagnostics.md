@@ -718,6 +718,9 @@ The second message names the construct it stopped at. The emitter writes the pro
 - an enum with a variant that is not an integer
 - a `@Protobuf.package` declaration the emitter cannot read
 - a `@Protobuf.reserve` list the emitter cannot read
+- an inherited or indexed model, whose base fields or indexed values would otherwise be lost
+- a property reusing a reserved field name or number
+- an explicit TypeSpec default, compiler validation constraint, `@encode`, restricted lifecycle visibility, `@discriminator` or `@discriminated` that generated proto3 cannot preserve, including metadata on a custom scalar base chain
 
 Four entries name state the emitter cannot read. They are the `Protobuf.Map`
 with no key and value, the `Protobuf.Map` of values, the `@Protobuf.package`
@@ -761,6 +764,8 @@ A mark on a model reached from the message is a different case. That model is no
 A model carries `@Avro.avroRecord` and `@AsyncAPI.message`, and `tsp-avro` refused to build a schema for it. The reason comes from that library and is quoted in the message.
 
 Only the first reason is quoted. The Avro walk keeps going after a refusal, so one model can collect several. To read all of them, put `tsp-avro` in `emit` and compile again.
+
+Recognized compiler constraints, `@encode`, restricted lifecycle visibility and discriminated metadata are refused rather than dropped. Logical annotations must belong to the advertised Avro 1.9 dialect; `local-timestamp-*` is not supported. See [Avro conversion limits](../guide/avro-schemas#refusals). JSON-only encoded names do not rename binary fields.
 
 No document is written. The payload of that model would fall back to the schema its TypeSpec type produces. That file answers a request for Avro with ordinary JSON Schema, and nothing in it says so.
 
@@ -1078,6 +1083,45 @@ A property's default value, written as `name?: T = value`, contains something th
 
 **Fix:** use `@invisible(Lifecycle)` to keep a property out of the document, or remove the `@visibility` if the property does belong in the message.
 
+### `unmapped-schema-scalar`
+
+**Warning.** A reached root scalar has no supported primitive or final wire encoding.
+The emitted schema remains unconstrained. Derive it from a supported scalar,
+declare a wire encoding, or use `unknown` for intentional unconstrained values.
+Repeated uses report once per root declaration per document.
+
+### `unsupported-encoded-constraint`
+
+**Warning.** A source constraint does not apply to the encoded wire type, for
+example numeric `minimum` on a string. The keyword is omitted, including in scalar
+`allOf` intersections and nullable unions. Constraints that still govern an
+unencoded branch are retained. Validate the source range in the application or describe
+the wire constraint explicitly. Distinct keyword losses each report once.
+
+### `unsupported-schema-keyword`
+
+**Warning.** A known later-draft extension keyword, or a non-draft-07 `$schema`,
+is retained but not endorsed as native draft-07 validation. Use a draft-07
+equivalent or an explicitly authored dialect. Nested schema keywords, including
+schema-valued `dependencies`, are inspected; property-dependency arrays remain data.
+
+### `schema-extension-overrides-contract`
+
+**Warning.** An extension replaces a generated validation keyword with a different
+value, or adds a `$ref` that displaces generated validation siblings under
+draft-07 semantics. The authored override is preserved; remove it to retain the
+generated contract. Equal values and harmless annotation extensions do not report.
+
+### `invalid-schema-extension`
+
+**Error.** A known extension keyword has a malformed value or nested schema,
+such as an invalid `type`, negative length, duplicate `required` names, structurally
+duplicate `enum` values (regardless of object-key order), or an invalid regular
+expression. The invalid keyword is not merged, and this error withholds
+document output. Correct the authored value; these bounded checks are not a
+substitute for dialect schema validation. Other historical error-output policies
+are unchanged.
+
 ### `unrepresentable-numeric-constraint`
 
 > This @\<decorator\> constraint could not be represented as a JSON number (its value overflows or loses precision as a JS number) and was omitted from the emitted schema.
@@ -1095,6 +1139,9 @@ A `@minValue`/`@maxValue`/`@minLength`/... bound overflows or loses precision as
 **Fix:** remove the constraint, or express it as documentation (`@doc`).
 
 ### `encoding-describes-no-variant`
+
+See also the fidelity diagnostics below for encodings that do select a branch
+but cannot preserve its validation constraints.
 
 > @encode("\<encoding\>") describes none of the variants of this union, so the encoding was left out of the emitted schema. Each variant keeps the shape its own type states.
 

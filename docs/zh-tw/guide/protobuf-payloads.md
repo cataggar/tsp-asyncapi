@@ -233,3 +233,26 @@ message OrderShipped {
 產生的 payload 有可能不存在，原因有三種。model 上方可能沒有 `@Protobuf.package`。走訪可能碰到本 emitter 寫不成 proto3 的構造。欄位可能用到對應不到 proto3 型別的 scalar。
 
 以上每一種都會回報 [`protobuf-artifact-unavailable`](../reference/diagnostics#protobuf-artifact-unavailable)，訊息會說明是哪一種。參考頁列出走訪拒絕的每一種構造。
+
+相同錯誤也會拒絕具有繼承欄位或索引簽章的 model，不再悄悄只輸出自身欄位或空 message。可到達宣告上的明確 TypeSpec 預設值、編譯器驗證限制（長度、pattern、format、數值與集合上下限）、`@encode`、受限 lifecycle 可見性、`@discriminator` 與 `@discriminated` 也會被拒絕，包含自訂 scalar 繼承鏈上的限制與編碼。診斷會指向不支援的宣告。請另行宣告二進位傳輸型別，並分開執行應用程式驗證；不會輸出部分產物或退回 JSON schema。
+
+沒有額外限制且已有對應的 scalar、文件、完整 lifecycle 可見性，以及 `@encodedName("application/json", ...)` 仍可使用。僅針對 JSON 的名稱不會重新命名二進位欄位；proto3 欄位保留 TypeSpec 拼法，tag 來自 `@Protobuf.field`。
+
+## 二進位 reader／writer 證據
+
+基準測試獨立編譯新舊 TypeSpec 原始碼，明確指定根型別 `contract.Event`。測試以 `protobufjs` 和 `keepCase: true` 分別解析實際輸出的文字，驗證 writer 輸入，由該 writer 編碼，再以選定的 reader 解碼，同時核對值與自身欄位是否存在。官方 emitter 的 descriptor 對照仍獨立保留。
+
+| 變更                     | 解碼成功**不代表**什麼                                                                                                                                                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 新增／移除選用或必要欄位 | 未知 tag 會遺失；缺少的欄位可能解碼成功但沒有自身屬性。TypeSpec 必要性是應用程式檢查，不是 proto3 傳輸上的 required 標記。                                                                                                                                |
+| 明確來源預設值           | 會拒絕產生，包含明確寫出的純量零值預設。系統不會安裝遷移 adapter 或任意 TypeSpec 預設值；proto3 隱含預設值是另一回事。                                                                                                                                    |
+| 選用性                   | 明確提供的選用純量零值，在 writer 與 reader 都是選用欄位時會保留存在性。安裝的 `protobufjs` 對隱含存在性的欄位會丟棄純量零值的自身欄位存在性，讀取時也是如此。缺值與 `null` 輸入不代表二進位允許 null；repeated 與 map 欄位沒有單一選用欄位的存在性語意。 |
+| 重新命名或更改 tag       | 相同 tag／型別可在不同來源欄位名稱下保留值；更改 tag 卻可能解碼成功但完全遺失值。停用的 tag／名稱應加以保留。                                                                                                                                             |
+| Enum 變更                | 舊 reader 可保留未知 enum 數值，但封閉 enum 的 consumer 檢查仍會拒絕；這不是符號或 ProtoJSON 相容性。                                                                                                                                                     |
+| 純量型別變更             | `int32`／`sint32` 可讀取對方的資料但得到不同的值；較寬的 `int64` 可能在 `int32` reader 中截斷。解碼成功不代表值被保留。                                                                                                                                   |
+
+每種支援的變更都執行舊→舊、舊→新、新→舊、新→新。拒絕及帶有遺失／預設值的接受結果都會被斷言，不會跳過或一概標成安全。解碼時丟棄的未知欄位無法靠重新編碼還原。writer 驗證不是來源契約驗證器，也不能證明所有數值範圍或必要性；寬整數須使用函式庫的精確表示，而非會失去精度的 JavaScript 數值。
+
+官方 AsyncAPI parser 驗證結構與 schema 語法，不驗證執行個體。獨立的 `@headers` 仍為原生 JSON schema；產生 payload 時不允許用 `@header` 提取欄位。手寫 proto2 對照有不同的傳輸必要性／預設值語意。即使互相遞迴的 message 讓官方 AsyncAPI parser 無法推斷根型別，明確指定根型別仍可解碼。
+
+這是特定 codec、數值與 consumer 檢查的有限基準證據，不是通用相容性證明、版本裝飾器投影測試、registry 政策、HTTP／ProtoJSON 契約或 broker 傳遞保證。

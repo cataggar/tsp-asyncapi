@@ -413,7 +413,7 @@ describe("what the Avro walk refuses", () => {
         @Avro.avroRecord model Event { value: Odd; }
       }
       `,
-      `unknown-logical-type: "totally-made-up" is not a logical type the Avro specification defines. The specification defines decimal, uuid, date, time-millis, time-micros, timestamp-millis, timestamp-micros, local-timestamp-millis, local-timestamp-micros, duration.`,
+      `unknown-logical-type: "totally-made-up" is not a logical type Avro 1.9 defines. This emitter supports decimal, uuid, date, time-millis, time-micros, timestamp-millis, timestamp-micros, duration. Use a supported annotation, or an authored schema for a newer dialect.`,
     );
   });
 

@@ -718,6 +718,9 @@ emitter 兩個都不採用。要選出勝者，只能看 emitter 列出 provider
 - 有非整數變體的 enum
 - 這個 emitter 讀不懂的 `@Protobuf.package` 宣告
 - 這個 emitter 讀不懂的 `@Protobuf.reserve` 列表
+- 具有繼承或索引簽章的 model，否則會遺失基底欄位或索引值
+- 重複使用保留欄位名稱或編號的屬性
+- 產生的 proto3 無法保留的明確 TypeSpec 預設值、編譯器驗證限制、`@encode`、受限 lifecycle 可見性、`@discriminator` 或 `@discriminated`，包含自訂 scalar 繼承鏈上的中繼資料
 
 其中四項指的是這個 emitter 讀不懂的 state：沒有 key 和 value 的 `Protobuf.Map`、傳進值而不是型別的 `Protobuf.Map`、`@Protobuf.package` 宣告，以及 `@Protobuf.reserve` 列表。那些 state 屬於另一個 library，那個 library 對它的形狀沒有任何承諾。遇到讀不懂的形狀就拒絕，不猜：猜錯會把錯的 proto3 文字寫進文件，而且不會有任何地方講出來。
 
@@ -756,6 +759,8 @@ model 屬於哪個 package，由上層最近一個帶 `@Protobuf.package` 的 na
 某個 model 同時有 `@Avro.avroRecord` 與 `@AsyncAPI.message`，而 `tsp-avro` 拒絕替它建出 schema。訊息裡引述的原因來自那個套件。
 
 只引述第一條原因。Avro 的走訪遇到拒絕之後會繼續走，所以一個 model 可能累積多條。要讀到全部，把 `tsp-avro` 放進 `emit` 再編譯一次。
+
+已知的編譯器限制、`@encode`、受限 lifecycle 可見性與判別式中繼資料會被拒絕，不會直接丟棄。logical 註記須屬於宣告的 Avro 1.9 方言；不支援 `local-timestamp-*`。詳見 [Avro 轉換限制](../guide/avro-schemas#錯誤情境)。僅針對 JSON 的編碼名稱不會重新命名二進位欄位。
 
 不會寫出文件。那個 model 的 payload 會退回成它的 TypeSpec 型別產生的 schema。那份檔案用一般的 JSON Schema 回應了一個要求 Avro 的請求，而且檔案裡沒有任何一處說明這件事。
 
@@ -1072,6 +1077,40 @@ server 與 security scheme 就是這種 target。兩者都以具名參數宣告�
 `@invisible(Lifecycle)` 不同。它表示該屬性不屬於任何階段，這句話不需要挑階段就能解讀，所以 emitter 會照做，把該屬性排除在外，這種情況不會回報任何訊息。
 
 **修法：** 要讓屬性不出現在文件裡，改用 `@invisible(Lifecycle)`；若該屬性本來就該出現在 message 裡，移除 `@visibility`。
+
+### `unmapped-schema-scalar`
+
+**Warning。** 觸及的 root scalar 沒有支援的 primitive 或最終 wire encoding，
+輸出仍是不限形狀的 schema。請繼承支援的 scalar、宣告 encoding，或以 `unknown`
+表示刻意接受任意值。每份文件對同一 root declaration 只回報一次。
+
+### `unsupported-encoded-constraint`
+
+**Warning。** 來源 constraint 不適用 encoded wire type，例如字串上的數字 `minimum`。
+該 keyword 會省略，包含 scalar `allOf` 交集與 nullable union 中的限制；
+仍適用未編碼分支的限制會保留。請在應用程式驗證來源範圍，
+或明確描述 wire constraint。不同 keyword 的損失分別回報。
+
+### `unsupported-schema-keyword`
+
+**Warning。** 已知較新 draft 的 extension keyword，或非 draft-07 的 `$schema`，
+會保留，但不宣稱 native draft-07 驗證支援。請改用 draft-07 等效限制或明確手寫
+dialect。巢狀 schema keyword（包含 schema 形式的 `dependencies`）也會檢查；
+欄位相依名稱陣列仍視為資料。
+
+### `schema-extension-overrides-contract`
+
+**Warning。** Extension 用不同值取代產生的驗證 keyword，或新增 `$ref` 讓產生的
+同層驗證關鍵字依 draft-07 語意失效。保留作者的覆寫；
+要維持產生的契約請移除覆寫。相同值與純 annotation 不回報。
+
+### `invalid-schema-extension`
+
+**Error。** 已知 extension keyword 值或巢狀 schema 不合法，例如無效 `type`、
+負長度、重複 `required` 名稱、結構相同的 `enum` 值（不受物件鍵順序影響）、
+無效 regex。不合格 keyword 不會合併，
+且此 error 會停止文件輸出。請修正原值。這些有限檢查不能取代 dialect schema
+驗證；其他既有 error 的輸出政策不變。
 
 ### `unrepresentable-numeric-constraint`
 

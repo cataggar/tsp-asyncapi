@@ -6,3 +6,6 @@ description: "How the emitter turns each TypeSpec construct into an AsyncAPI Sch
 # Schema Conversion
 
 How the emitter converts each TypeSpec construct to an [AsyncAPI Schema Object](https://www.asyncapi.com/docs/reference/specification/v3.0.0#schemaObject) (a superset of JSON Schema draft-07). A construct used as a message payload lands in `components.schemas`.
+
+See [Contract fidelity and evolution](./contract-fidelity) for the executable
+feature matrix, consumer assumptions, diagnostics and finite-fixture limitations.

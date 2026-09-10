@@ -39,15 +39,14 @@ import {
 import { SchemaObject, ReferenceObject } from "../../types/index.js";
 import {
   SCHEMA_FORMAT,
-  getJsonSchemaExtensions,
   serializeExamples,
   serializeDefaultValue,
-  toPlainValue,
   buildExternalDocs,
-  type JsonSchemaExtensionRecord,
 } from "tsp-asyncapi-core";
 import { SchemaDiagnostics } from "./diagnostics.js";
-import { applyEncoding } from "./encoding.js";
+import { applyEncoding, filterEncodedConstraints } from "./encoding.js";
+import { reportUnmappedScalar } from "./scalars.js";
+import { buildJsonSchemaExtensionFields } from "./extensions.js";
 
 /**
  * The annotation keywords a declaration or a use site contributes. These
@@ -398,31 +397,6 @@ function buildDefaultField(
 }
 
 /**
- * Turns `@jsonSchemaExtension`'s accumulated `{ key, value }` records into a
- * plain object of top-level schema keywords, one property per record. A
- * target with no application returns `{}`, a no-op when merged in.
- *
- * The decorator stores the value as the compiler marshalled it: plain
- * JavaScript for a string, number, or boolean, and the compiler's own value
- * object for a scalar such as `utcDateTime`. The value goes through
- * `toPlainValue` here, the same rule every binding decorator uses, so the
- * schema never emits the compiler's internals directly.
- *
- * @param program - The compiled program
- * @param extensions - The JSON Schema extensions
- */
-function buildJsonSchemaExtensionFields(
-  program: Program,
-  extensions: readonly JsonSchemaExtensionRecord[],
-): Record<string, unknown> {
-  const fields: Record<string, unknown> = {};
-  for (const { key, value } of extensions) {
-    fields[key] = toPlainValue(program, value);
-  }
-  return fields;
-}
-
-/**
  * Returns `schema` with `format` removed from it and from every `allOf`
  * branch below it.
  *
@@ -524,7 +498,15 @@ export function withDocs(
   diagnostics: SchemaDiagnostics,
 ): SchemaObject {
   const docs = buildDocFields(program, target, target, diagnostics);
-  const validation = buildValidationKeywords(program, target, diagnostics);
+  const validation =
+    target.kind === "Scalar"
+      ? filterEncodedConstraints(
+          buildValidationKeywords(program, target, diagnostics),
+          schema,
+          target,
+          diagnostics,
+        )
+      : buildValidationKeywords(program, target, diagnostics);
   // `format` is a draft-07 annotation, not a keyword that can be
   // intersected like `minLength`/`pattern`/`minimum`. Two different
   // `format`s on the same value contradict rather than form a valid
@@ -547,10 +529,11 @@ export function withDocs(
   // last, deliberately: a user reaching for this escape hatch to set a
   // keyword the emitter already produces, e.g. `unevaluatedProperties`
   // alongside `@discriminator`, is doing so on purpose, so an extension
-  // key always wins rather than being dropped as "already present".
+  // valid key wins. The extension builder diagnoses invalid values, dialect
+  // mismatches and deliberate overrides rather than silently endorsing them.
   const extensionFields =
     target.kind === "Model"
-      ? buildJsonSchemaExtensionFields(program, getJsonSchemaExtensions(program, target))
+      ? buildJsonSchemaExtensionFields(program, target, { ...schema, ...validation }, diagnostics)
       : {};
   if (collidesWithBase) {
     // `title`/`description`/`examples` left inside the `allOf` branch would
@@ -625,16 +608,38 @@ export function withPropertyDocs(
     prop.kind === "ModelProperty" && !("$ref" in schema)
       ? applyEncoding(program, prop, schema, diagnostics)
       : schema;
+  if (prop.kind === "ModelProperty" && prop.type.kind === "Scalar" && !("$ref" in encoded)) {
+    reportUnmappedScalar(diagnostics, prop.type, encoded);
+  }
   // The example is serialized against `prop`, not `prop.type`, so it gets
   // the same `@encode`, keeping it valid against the schema describing it.
   const docs = buildDocFields(program, prop, prop, diagnostics);
-  const validation = buildValidationKeywords(program, prop, diagnostics);
+  const validation =
+    prop.kind === "ModelProperty" && !("$ref" in encoded)
+      ? filterEncodedConstraints(
+          buildValidationKeywords(program, prop, diagnostics),
+          encoded,
+          prop,
+          diagnostics,
+          program,
+        )
+      : buildValidationKeywords(program, prop, diagnostics);
+  const { format, ...restValidation } = validation;
+  const collidesWithOwnShape = Object.keys(restValidation).some((key) => key in encoded);
+  let generated: SchemaObject;
+  if ("$ref" in encoded) {
+    generated = { allOf: [encoded], ...docs, ...validation };
+  } else if (collidesWithOwnShape) {
+    generated = hoistAnnotationsAboveAllOf(encoded, docs, restValidation, format);
+  } else {
+    generated = { ...encoded, ...docs, ...validation };
+  }
   // `@jsonSchemaExtension` only legally targets `Model | ModelProperty`; a
   // `UnionVariant` never carries one, so this is always `{}` in that case.
   // See `withDocs`'s matching comment for the merge-order rationale.
   const extensionFields =
     prop.kind === "ModelProperty"
-      ? buildJsonSchemaExtensionFields(program, getJsonSchemaExtensions(program, prop))
+      ? buildJsonSchemaExtensionFields(program, prop, generated, diagnostics)
       : {};
   // A `UnionVariant` has no default value; only a `ModelProperty` carries
   // one, written as `name?: T = value`.
@@ -651,10 +656,6 @@ export function withPropertyDocs(
   // different `format`s on the same value contradict rather than form a
   // valid `allOf` intersection, so, as in `withDocs`, it is excluded from
   // the collision set and merged in last, winning over the base's.
-  const { format, ...restValidation } = validation;
-  const collidesWithOwnShape = Object.keys(restValidation).some(
-    (key) => key in (encoded as Record<string, unknown>),
-  );
   if (collidesWithOwnShape) {
     // Same annotation-hoisting rule as `withDocs`: `title`/`description`/
     // `examples` left inside the `allOf` branch would not propagate to the

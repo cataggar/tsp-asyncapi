@@ -148,6 +148,36 @@ export const $lib = createTypeSpecLibrary({
         default: paramMessage`@encode("${"encoding"}") describes none of the variants of this union, so the encoding was left out of the emitted schema. Each variant keeps the shape its own type states.`,
       },
     },
+    "unmapped-schema-scalar": {
+      severity: "warning",
+      messages: {
+        default: paramMessage`Scalar '${"name"}' has no known wire shape and is emitted as an unconstrained schema. Use extends with a supported scalar or declare a supported encoding; use unknown for intentionally unconstrained values.`,
+      },
+    },
+    "unsupported-encoded-constraint": {
+      severity: "warning",
+      messages: {
+        default: paramMessage`Constraint '${"keyword"}' cannot describe the encoded '${"wireType"}' wire value and was omitted. The encoded representation is retained, but the source constraint requires application validation or an explicit wire schema.`,
+      },
+    },
+    "unsupported-schema-keyword": {
+      severity: "warning",
+      messages: {
+        default: paramMessage`Schema extension '${"keyword"}' is not a draft-07 keyword. It is retained as authored, but native AsyncAPI draft-07 consumers do not enforce it. Use a supported draft-07 constraint or an explicitly authored schema dialect.`,
+      },
+    },
+    "invalid-schema-extension": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Schema extension '${"keyword"}' has an invalid draft-07 value: ${"reason"}. Correct the extension before emitting this contract.`,
+      },
+    },
+    "schema-extension-overrides-contract": {
+      severity: "warning",
+      messages: {
+        default: paramMessage`Schema extension '${"keyword"}' replaces a generated validation constraint. The authored value is retained and may change the TypeSpec contract; remove the override to preserve the generated contract.`,
+      },
+    },
     "missing-discriminator-property": {
       severity: "warning",
       messages: {
