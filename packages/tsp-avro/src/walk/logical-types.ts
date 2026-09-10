@@ -36,7 +36,7 @@ import {
 const DURATION_SIZE = 12;
 
 /**
- * Each logical type, and the underlying types it is written on.
+ * Each Avro 1.9 logical type, and the underlying types it is written on.
  *
  * `uuid` is written on a string alone. Avro 1.12 added a fixed type of sixteen
  * bytes, and this package holds to the earlier rule, which every reader
@@ -50,8 +50,6 @@ const LOGICAL_TYPES: ReadonlyMap<string, readonly string[]> = new Map([
   ["time-micros", ["long"]],
   ["timestamp-millis", ["long"]],
   ["timestamp-micros", ["long"]],
-  ["local-timestamp-millis", ["long"]],
-  ["local-timestamp-micros", ["long"]],
   ["duration", ["fixed"]],
 ]);
 

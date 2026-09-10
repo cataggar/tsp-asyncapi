@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { emitAvroFiles, expectInstanceRoundTrip, fieldNamed } from "../../utils/avro.js";
+import { emitAvro, emitAvroFiles, expectInstanceRoundTrip, fieldNamed } from "../../utils/avro.js";
 
 /**
  * The logical types, pinned one by one.
@@ -76,19 +76,24 @@ describe("the Avro logical types", () => {
     ).toEqual({ type: "long", logicalType: "timestamp-micros" });
   });
 
-  it("writes local-timestamp-millis on a long", async () => {
-    // The local pair carries no time zone. That is the whole difference, and
-    // the underlying type is the same.
-    expect(
-      await fieldType(`@Avro.logicalType("local-timestamp-millis") scalar At extends int64;`, "At"),
-    ).toEqual({ type: "long", logicalType: "local-timestamp-millis" });
-  });
-
-  it("writes local-timestamp-micros on a long", async () => {
-    expect(
-      await fieldType(`@Avro.logicalType("local-timestamp-micros") scalar At extends int64;`, "At"),
-    ).toEqual({ type: "long", logicalType: "local-timestamp-micros" });
-  });
+  it.each(["local-timestamp-millis", "local-timestamp-micros"])(
+    "refuses %s outside Avro 1.9",
+    async (name) => {
+      const result = await emitAvro(`
+      @Avro.avroNamespace("${NAMESPACE}") namespace A {
+        @Avro.logicalType("${name}") scalar At extends int64;
+        @Avro.avroRecord model Event { value: At; }
+      }
+    `);
+      expect(result.files).toEqual({});
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0]).toMatchObject({
+        code: "tsp-avro/unknown-logical-type",
+        severity: "error",
+      });
+      expect(result.diagnostics[0].message).toContain("not a logical type Avro 1.9 defines");
+    },
+  );
 
   it("writes decimal on bytes, with its precision and its scale", async () => {
     // A decimal is an unscaled integer plus the place of the point. Both

@@ -271,3 +271,21 @@ To describe headers, point [`@headers`](../reference/decorators/messages#headers
 [`@rawPayload`](../reference/decorators/messages#rawpayload) writes a schema in another language by hand. It wins over a generated one.
 
 A model that carries both reports [`conflicting-message-schema-source`](../reference/diagnostics#conflicting-message-schema-source). The document keeps the authored schema. Remove `@rawPayload` from the model to take the generated one.
+
+## Contract fidelity and independent releases
+
+Generated payloads advertise **Avro 1.9.0**. The [conversion and logical-type limits](./avro-schemas#logical-types) apply here too. Unsupported compiler constraints, encoding, restricted visibility or discriminated envelopes stop generation with `tsp-asyncapi/avro-artifact-unavailable`, carrying the first Avro refusal reason. Running the Avro emitter directly exposes its `tsp-avro/unsupported-type` reasons. No partial record or JSON fallback is emitted.
+
+The binary baseline tests compile old and new TypeSpec sources independently with the stable record name `contract.Event`. They use the actual emitted schemas, independent `avsc` types, `reader.createResolver(writer)`, writer encoding and reader decoding. Every mutation has old→old, old→new, new→old and new→new controls. Expected rejections are passing tests, not skipped cases.
+
+| Mutation                  | Evidence and consumer assumption                                                                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Optional addition/removal | Null unions with reader defaults permit reads; unknown writer fields are skipped. Omitted optional fields normalize to an own field with `null`.                                                              |
+| Required addition/removal | A reader missing the writer field needs a reader default; otherwise resolution fails. A declared default is checked for its exact value.                                                                      |
+| Rename/alias              | A new reader's `@Avro.aliases("oldName")` reads the old field. A frozen old reader does not learn that alias.                                                                                                 |
+| Enum addition/removal     | With the installed `avsc`, resolver construction refuses a writer enum containing unknown reader symbols unless that reader declares an enum fallback. A fallback is accepted-with-default, not preservation. |
+| Type/optionality changes  | `int`→`long` promotion is directional. The installed `avsc` refuses a nullable writer at resolver construction when the reader cannot handle null, even if a particular witness contains a string.            |
+
+`avsc` uses unwrapped unions and allows undeclared input object properties, which are not serialized. No logical adapters are installed: timestamp units, decimal scale and UUID semantics require separate annotation/value interpretation checks. JavaScript-number tests do not prove full signed-64-bit precision.
+
+The official AsyncAPI parser checks document and embedded-schema structure, not message instances. Payload tests use hand-written values; separate `@headers` remain native JSON schemas rather than Avro fields. This is finite evidence for the stated codec and values, not a schema-inclusion proof, registry compatibility mode, ProtoJSON/HTTP compatibility claim, or broker delivery guarantee. These are independent-release baseline tests, not version-decorator or retained-version projection tests.

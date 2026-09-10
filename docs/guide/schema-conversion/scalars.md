@@ -8,7 +8,7 @@ description: "This page lists the type and format every built-in scalar maps to,
 A scalar is a single value: a string, a number, a boolean, a moment in time.
 A model has properties; a scalar does not.
 
-Every TypeSpec scalar maps to a JSON Schema `type`. Where JSON Schema also has
+A supported TypeSpec scalar maps to a JSON Schema `type`. Where JSON Schema also has
 a `format` for the finer kind, such as `int32` or `date-time`, that is written
 too.
 
@@ -46,6 +46,12 @@ Intrinsic types:
 | `unknown`       | `{}`               | Any value is valid |
 
 ## User-declared scalars
+
+A root scalar without a supported base or wire encoding has no known shape.
+It retains `{}` but reports `unmapped-schema-scalar` once per root declaration
+per document. Derive from a supported scalar or supply a wire encoding; use
+`unknown` when accepting any value is intentional. A supported encoding is
+considered before deciding whether the final shape is unmapped.
 
 `extends` derives a new scalar from an existing one. The shape comes from the base, and the new scalar adds its own documentation and validation keywords. The rules live on the scalar, so every field that uses it carries them:
 

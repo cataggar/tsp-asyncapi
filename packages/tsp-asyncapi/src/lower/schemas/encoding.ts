@@ -119,9 +119,16 @@ function encodeShape(
   schema: SchemaObject,
   encodeData: EncodeData,
   declared: Scalar | undefined,
+  target: Scalar | ModelProperty,
+  diagnostics: SchemaDiagnostics,
 ): SchemaObject {
-  const encoded: SchemaObject = { ...schema };
   const targetShape = naturalScalarShape(encodeData.type);
+  const encoded = filterEncodedConstraints(schema, targetShape.type, target, diagnostics);
+  if (encoded.allOf !== undefined) {
+    encoded.allOf = encoded.allOf.map((branch) =>
+      "$ref" in branch ? branch : encodeShape(branch, encodeData, declared, target, diagnostics),
+    );
+  }
   encoded.type = targetShape.type;
   if (targetShape.type !== "array") {
     delete encoded.items;
@@ -134,6 +141,47 @@ function encodeShape(
     delete encoded.format;
   }
   return encoded;
+}
+
+const CONSTRAINT_DOMAINS = new Map<string, readonly string[]>(
+  Object.entries({
+    minimum: ["number", "integer"],
+    maximum: ["number", "integer"],
+    exclusiveMinimum: ["number", "integer"],
+    exclusiveMaximum: ["number", "integer"],
+    multipleOf: ["number", "integer"],
+    minLength: ["string"],
+    maxLength: ["string"],
+    pattern: ["string"],
+    minItems: ["array"],
+    maxItems: ["array"],
+    uniqueItems: ["array"],
+  }),
+);
+
+/** Constraints describe source values; copying them onto another wire type is not preservation. */
+export function filterEncodedConstraints(
+  schema: SchemaObject,
+  wireType: SchemaObject["type"],
+  target: Scalar | ModelProperty,
+  diagnostics: SchemaDiagnostics,
+): SchemaObject {
+  if (typeof wireType !== "string") return { ...schema };
+  return Object.fromEntries(
+    Object.entries(schema).filter(([keyword]) => {
+      const domain = CONSTRAINT_DOMAINS.get(keyword);
+      if (domain === undefined || domain.includes(wireType)) return true;
+      diagnostics.reportOnce(
+        {
+          code: "unsupported-encoded-constraint",
+          target,
+          format: { keyword, wireType },
+        },
+        keyword,
+      );
+      return false;
+    }),
+  );
 }
 
 /**
@@ -304,6 +352,7 @@ function encodeUnion(
   schema: SchemaObject,
   encodeData: EncodeData,
   diagnostics: SchemaDiagnostics,
+  target: Scalar | ModelProperty,
 ): SchemaObject {
   const variants = [...union.variants.values()];
   for (const keyword of UNION_KEYWORDS) {
@@ -318,7 +367,7 @@ function encodeUnion(
       }
       const shape =
         "$ref" in branch ? buildScalarShapeWithDocs(program, diagnostics, variant) : branch;
-      return encodeShape(shape, encodeData, variant);
+      return encodeShape(shape, encodeData, variant, target, diagnostics);
     });
     return { ...schema, [keyword]: encoded };
   }
@@ -350,7 +399,13 @@ export function applyEncoding(
 
   const declared = declaredTypeOf(target);
   if (declared.kind === "Union") {
-    return encodeUnion(program, declared, schema, encodeData, diagnostics);
+    return encodeUnion(program, declared, schema, encodeData, diagnostics, target);
   }
-  return encodeShape(schema, encodeData, declared.kind === "Scalar" ? declared : undefined);
+  return encodeShape(
+    schema,
+    encodeData,
+    declared.kind === "Scalar" ? declared : undefined,
+    target,
+    diagnostics,
+  );
 }

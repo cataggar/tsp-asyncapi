@@ -243,22 +243,24 @@ Avro 沒有無號整數。`uint32` 與 `uint64` 會被拒絕，因為放寬型�
 
 logical type 是型別的一個屬性，不是獨立的型別。Avro 用 `int` 承載日期，知道這個屬性的 reader 會據此建出日期。不知道的 reader 讀到的是那個數字。所以這個屬性不改變傳輸上的內容。
 
-`@Avro.logicalType` 寫出一個 logical type。規格指定了每一個底下的型別，下表就是 emitter 持有的對照。
+`@Avro.logicalType` 寫出一個 logical type。[Avro 1.9 規格](https://avro.apache.org/docs/1.9.0/spec.html#Logical+Types)指定了每一個底下的型別，下表就是 emitter 持有的對照。
 
-| Logical type             | 寫在什麼上面       |
-| ------------------------ | ------------------ |
-| `decimal`                | `bytes`、fixed     |
-| `uuid`                   | `string`           |
-| `date`                   | `int`              |
-| `time-millis`            | `int`              |
-| `time-micros`            | `long`             |
-| `timestamp-millis`       | `long`             |
-| `timestamp-micros`       | `long`             |
-| `local-timestamp-millis` | `long`             |
-| `local-timestamp-micros` | `long`             |
-| `duration`               | fixed，12 個位元組 |
+| Logical type       | 寫在什麼上面       |
+| ------------------ | ------------------ |
+| `decimal`          | `bytes`、fixed     |
+| `uuid`             | `string`           |
+| `date`             | `int`              |
+| `time-millis`      | `int`              |
+| `time-micros`      | `long`             |
+| `timestamp-millis` | `long`             |
+| `timestamp-micros` | `long`             |
+| `duration`         | fixed，12 個位元組 |
 
 表以外的組合會被拒絕。表以外的名稱也會被拒絕。
+
+尤其是 `local-timestamp-millis` 與 `local-timestamp-micros` 並非 Avro 1.9 的 logical type，因此會被拒絕，不會以產生的 `version=1.9.0` schema 格式宣稱支援。UUID 使用字串，不採用較新版本的 fixed 寬度表示。
+
+測試分別核對輸出的註記、precision、scale 與 fixed 寬度，而非僅依賴二進位往返。測試使用的 `avsc` 未註冊 logical adapter，只讀取底層數值、字串與 buffer；它不能證明 UUID 字串合法、時間戳單位正確或 decimal 意義一致。例如未縮放的 `1234` 搭配 scale `2` 表示 `12.34`，只解碼位元組不會檢查這層意義。
 
 `decimal` 是唯一帶參數的 logical type，所以它有自己的 decorator。寫成 `@Avro.decimal(precision, scale)`。precision 是位數，scale 是其中落在小數點之後的位數。放在 fixed 型別裡的 decimal 受那個型別的寬度限制。
 
@@ -275,7 +277,7 @@ logical type 是型別的一個屬性，不是獨立的型別。Avro 用 `int` �
 | `@Avro.decimal(precision, scale)` | `Scalar`、`ModelProperty`                  | 寫出 `decimal` logical type 與它的參數。                               |
 | `@Avro.enumDefault(member)`       | `Enum`                                     | 指定 reader 退回的符號。                                               |
 
-doc 來自原生的 `/** */` 註解。欄位預設值來自原生的 `= value`。這兩件事都沒有 decorator。
+doc 來自原生的 `/** */` 註解。欄位預設值來自原生的 `= value`。這兩件事都沒有 decorator。record 預設值（包含巢狀在陣列與 map 中的 record）使用 Avro／來源欄位名稱，不套用僅針對 JSON 的 `@encodedName` 拼法。
 
 ## 診斷
 
@@ -287,14 +289,14 @@ doc 來自原生的 `/** */` 註解。欄位預設值來自原生的 `= value`�
 | --------------------------------- | ----------------------------------------------------------------------------------- |
 | `tsp-avro/namespace-required`     | record 上方沒有 Avro namespace。                                                    |
 | `tsp-avro/invalid-name`           | 名稱不符合 Avro 的名稱規則，或是 Avro 保留給自身型別的名稱。                        |
-| `tsp-avro/unsupported-type`       | 型別沒有 Avro 形式。                                                                |
+| `tsp-avro/unsupported-type`       | 型別或已知的編譯器中繼資料無法忠實轉成 Avro。                                       |
 | `tsp-avro/aliases-target`         | `@Avro.aliases` 標在會寫成 Avro 原始型別的 scalar 上。                              |
 | `tsp-avro/duplicate-union-branch` | 一個 union 裡有兩個分支是同一個 Avro 型別。                                         |
 | `tsp-avro/invalid-default`        | 預設值沒有 JSON 形式，或指不出 union 的哪一個分支。                                 |
 | `tsp-avro/invalid-order`          | `@Avro.order` 收到的不是 Avro 的欄位排序方式。                                      |
 | `tsp-avro/invalid-fixed`          | `@Avro.fixed` 收到的寬度不是正數，或標在繼承了 `bytes` 以外 Avro 型別的 scalar 上。 |
 | `tsp-avro/invalid-decimal`        | precision 或 scale 不合，或 `decimal` 兩者都沒有。                                  |
-| `tsp-avro/unknown-logical-type`   | logical type 不是規格定義的那幾個。                                                 |
+| `tsp-avro/unknown-logical-type`   | logical type 不在支援的 Avro 1.9 方言內。                                           |
 | `tsp-avro/logical-type-mismatch`  | logical type 寫在規格不允許的型別上。                                               |
 | `tsp-avro/duplicate-logical-type` | 一個宣告帶了兩個 logical type。                                                     |
 | `tsp-avro/enum-default`           | `@Avro.enumDefault` 指定的成員不在該 enum 裡。                                      |
@@ -303,6 +305,8 @@ doc 來自原生的 `/** */` 註解。欄位預設值來自原生的 `= value`�
 
 ## 錯誤情境
 
+- 編譯器驗證限制（`@minLength`、`@maxLength`、`@pattern`、`@format`、數值上下限與集合長度）、明確的 `@encode`、受限的 lifecycle 可見性、`@discriminator` 與 `@discriminated` 都會被拒絕。這包含可到達的屬性、自訂 scalar 繼承鏈與集合上的中繼資料，不能悄悄變成沒有約束的二進位欄位。請另行宣告二進位傳輸型別，並分開驗證應用程式規則；Avro logical 註記僅適用於上表的配對。
+- 僅針對 JSON 的 `@encodedName("application/json", ...)` **不會**重新命名 Avro 欄位，也不會因此拒絕轉換。二進位欄位保留宣告名稱，Avro reader 的別名請用 `@Avro.aliases`。完整 lifecycle 可見性、文件與支援的欄位預設值仍可使用。
 - 繼承其他 model 的 model。Avro record 沒有繼承。
 - 匿名 model。Avro record 需要名稱。
 - template 執行個體，例如 `Box<string>`。同一個 template 的兩個執行個體共用一個名稱。

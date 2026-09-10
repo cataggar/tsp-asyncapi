@@ -68,6 +68,7 @@ export default defineConfig({
                   { text: "Unions", link: "/guide/schema-conversion/unions" },
                   { text: "Inheritance", link: "/guide/schema-conversion/inheritance" },
                   { text: "Validation", link: "/guide/schema-conversion/validation" },
+                  { text: "Contract fidelity", link: "/guide/schema-conversion/contract-fidelity" },
                   { text: "Modifiers", link: "/guide/schema-conversion/modifiers" },
                   { text: "Templated models", link: "/guide/schema-conversion/templated-models" },
                 ],
@@ -164,6 +165,7 @@ export default defineConfig({
                   { text: "Union", link: "/zh-tw/guide/schema-conversion/unions" },
                   { text: "繼承與多型", link: "/zh-tw/guide/schema-conversion/inheritance" },
                   { text: "驗證器", link: "/zh-tw/guide/schema-conversion/validation" },
+                  { text: "契約忠實度", link: "/zh-tw/guide/schema-conversion/contract-fidelity" },
                   { text: "說明、命名與其他", link: "/zh-tw/guide/schema-conversion/modifiers" },
                   {
                     text: "Templated model",

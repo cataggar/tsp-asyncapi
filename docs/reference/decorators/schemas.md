@@ -36,8 +36,12 @@ extern dec jsonSchemaExtension(target: Model | ModelProperty, key: valueof strin
 
 Adds one raw key/value pair to the target's emitted schema — the escape hatch for keywords with no dedicated decorator. Repeatable: each application adds one pair. An extension key overrides the same keyword the emitter would produce itself.
 
+Changed validation overrides warn; malformed known keyword values report errors.
+Later-draft keywords are retained with `unsupported-schema-keyword`, not treated
+as native draft-07 validation. See [modifiers](../../guide/schema-conversion/modifiers).
+
 ```typespec
-@jsonSchemaExtension("unevaluatedProperties", false)
+@jsonSchemaExtension("additionalProperties", false)
 model Strict {
   id: string;
 }
@@ -51,7 +55,7 @@ Strict:
       type: string
   required:
     - id
-  unevaluatedProperties: false
+  additionalProperties: false
 ```
 
 ## How a schema key is built

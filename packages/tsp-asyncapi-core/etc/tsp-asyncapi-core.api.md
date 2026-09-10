@@ -73,6 +73,21 @@ readonly default: CallableMessage<["decorator"]>;
 "encoding-describes-no-variant": {
 readonly default: CallableMessage<["encoding"]>;
 };
+"unmapped-schema-scalar": {
+readonly default: CallableMessage<["name"]>;
+};
+"unsupported-encoded-constraint": {
+readonly default: CallableMessage<["keyword", "wireType"]>;
+};
+"unsupported-schema-keyword": {
+readonly default: CallableMessage<["keyword"]>;
+};
+"invalid-schema-extension": {
+readonly default: CallableMessage<["keyword", "reason"]>;
+};
+"schema-extension-overrides-contract": {
+readonly default: CallableMessage<["keyword"]>;
+};
 "missing-discriminator-property": {
 readonly default: CallableMessage<["property"]>;
 };
@@ -577,7 +592,7 @@ export interface CorrelationIdState {
 }
 
 // @public
-export const createDiagnostic: <C extends "incomplete-effective-document" | "stale-effective-declaration" | "unknown-service" | "ambiguous-service-selection" | "unowned-application-declaration" | "cross-service-reference" | "ambiguous-security-scheme" | "invalid-output-file" | "duplicate-output-file" | "multiple-services" | "unserializable-example" | "visibility-not-applied" | "unserializable-default" | "unrepresentable-numeric-constraint" | "unsupported-temporal-range-constraint" | "encoding-describes-no-variant" | "missing-discriminator-property" | "optional-discriminator-property" | "encoded-name-override-conflict" | "never-typed-property-override" | "duplicate-schema-key" | "payload-schema-key-taken" | "raw-schema-key-taken" | "preview-feature-unavailable" | "protobuf-artifact-unavailable" | "header-on-generated-payload" | "avro-artifact-unavailable" | "avro-library-missing" | "conflicting-generated-schema-source" | "conflicting-message-schema-source" | "duplicate-message-key" | "duplicate-message-decorator" | "message-key-shadows-schema-key" | "sanitized-message-key" | "duplicate-content-type-decorator" | "empty-content-type" | "duplicate-headers-decorator" | "duplicate-message-headers" | "duplicate-raw-payload-decorator" | "duplicate-raw-headers-decorator" | "empty-schema-format" | "unknown-schema-format" | "invalid-raw-schema" | "non-string-raw-schema" | "string-raw-schema" | "raw-schema-local-ref" | "unresolved-raw-schema-ref" | "raw-payload-lifted-header" | "headers-not-object" | "nested-header-ignored" | "inherited-header-ignored" | "inherited-header-overridden" | "discriminated-lifted-header" | "content-type-header-conflict" | "duplicate-correlation-id-decorator" | "invalid-correlation-id-location" | "empty-message-example" | "unserializable-message-example" | "empty-tag-name" | "conflicting-tag-metadata" | "invalid-extension-key" | "duplicate-extension-key" | "unserializable-extension" | "extension-target-not-emitted" | "duplicate-server-name" | "empty-server-field" | "server-outside-service" | "invalid-server-name" | "empty-channel-address" | "invalid-channel-address" | "invalid-channel-param-name" | "empty-channel-id" | "duplicate-channel-decorator" | "duplicate-dynamic-channel-decorator" | "conflicting-channel-decorators" | "duplicate-channel-id" | "duplicate-channel-address" | "channel-no-messages" | "missing-channel-param" | "unused-channel-param" | "non-string-channel-param" | "optional-channel-param" | "conflicting-channel-param" | "duplicate-parameter-location-decorator" | "invalid-parameter-location" | "duplicate-use-server" | "invalid-use-server-name" | "undeclared-used-server" | "use-server-without-channel" | "undeclared-server-variable" | "unused-server-variable" | "blank-server-variable-value" | "duplicate-server-variable-value" | "server-variable-default-not-in-enum" | "duplicate-security-scheme-name" | "invalid-security-scheme-name" | "empty-security-scheme-field" | "blank-security-scope-name" | "unknown-oauth-scope" | "invalid-url" | "empty-info-version" | "empty-license-name" | "duplicate-info-decorator" | "missing-oauth-flow-url" | "empty-oauth-flows" | "use-security-outside-server" | "undeclared-security-scheme" | "duplicate-send-decorator" | "duplicate-receive-decorator" | "conflicting-operation-actions" | "empty-operation-id" | "duplicate-operation-id" | "operation-without-channel" | "duplicate-reply-channel-decorator" | "duplicate-reply-address-decorator" | "invalid-reply-address-location" | "reply-channel-not-a-channel" | "reply-address-needs-dynamic-channel" | "reply-without-action" | "duplicate-binding" | "empty-binding-protocol" | "invalid-binding-config" | "invalid-binding-field" | "invalid-required-binding-field" | "missing-binding-field" | "binding-outside-document" | "unsupported-payload-type" | "unsupported-operation-message-type" | "unrepresentable-circular-reference", M extends keyof {
+export const createDiagnostic: <C extends "incomplete-effective-document" | "stale-effective-declaration" | "unknown-service" | "ambiguous-service-selection" | "unowned-application-declaration" | "cross-service-reference" | "ambiguous-security-scheme" | "invalid-output-file" | "duplicate-output-file" | "multiple-services" | "unserializable-example" | "visibility-not-applied" | "unserializable-default" | "unrepresentable-numeric-constraint" | "unsupported-temporal-range-constraint" | "encoding-describes-no-variant" | "unmapped-schema-scalar" | "unsupported-encoded-constraint" | "unsupported-schema-keyword" | "invalid-schema-extension" | "schema-extension-overrides-contract" | "missing-discriminator-property" | "optional-discriminator-property" | "encoded-name-override-conflict" | "never-typed-property-override" | "duplicate-schema-key" | "payload-schema-key-taken" | "raw-schema-key-taken" | "preview-feature-unavailable" | "protobuf-artifact-unavailable" | "header-on-generated-payload" | "avro-artifact-unavailable" | "avro-library-missing" | "conflicting-generated-schema-source" | "conflicting-message-schema-source" | "duplicate-message-key" | "duplicate-message-decorator" | "message-key-shadows-schema-key" | "sanitized-message-key" | "duplicate-content-type-decorator" | "empty-content-type" | "duplicate-headers-decorator" | "duplicate-message-headers" | "duplicate-raw-payload-decorator" | "duplicate-raw-headers-decorator" | "empty-schema-format" | "unknown-schema-format" | "invalid-raw-schema" | "non-string-raw-schema" | "string-raw-schema" | "raw-schema-local-ref" | "unresolved-raw-schema-ref" | "raw-payload-lifted-header" | "headers-not-object" | "nested-header-ignored" | "inherited-header-ignored" | "inherited-header-overridden" | "discriminated-lifted-header" | "content-type-header-conflict" | "duplicate-correlation-id-decorator" | "invalid-correlation-id-location" | "empty-message-example" | "unserializable-message-example" | "empty-tag-name" | "conflicting-tag-metadata" | "invalid-extension-key" | "duplicate-extension-key" | "unserializable-extension" | "extension-target-not-emitted" | "duplicate-server-name" | "empty-server-field" | "server-outside-service" | "invalid-server-name" | "empty-channel-address" | "invalid-channel-address" | "invalid-channel-param-name" | "empty-channel-id" | "duplicate-channel-decorator" | "duplicate-dynamic-channel-decorator" | "conflicting-channel-decorators" | "duplicate-channel-id" | "duplicate-channel-address" | "channel-no-messages" | "missing-channel-param" | "unused-channel-param" | "non-string-channel-param" | "optional-channel-param" | "conflicting-channel-param" | "duplicate-parameter-location-decorator" | "invalid-parameter-location" | "duplicate-use-server" | "invalid-use-server-name" | "undeclared-used-server" | "use-server-without-channel" | "undeclared-server-variable" | "unused-server-variable" | "blank-server-variable-value" | "duplicate-server-variable-value" | "server-variable-default-not-in-enum" | "duplicate-security-scheme-name" | "invalid-security-scheme-name" | "empty-security-scheme-field" | "blank-security-scope-name" | "unknown-oauth-scope" | "invalid-url" | "empty-info-version" | "empty-license-name" | "duplicate-info-decorator" | "missing-oauth-flow-url" | "empty-oauth-flows" | "use-security-outside-server" | "undeclared-security-scheme" | "duplicate-send-decorator" | "duplicate-receive-decorator" | "conflicting-operation-actions" | "empty-operation-id" | "duplicate-operation-id" | "operation-without-channel" | "duplicate-reply-channel-decorator" | "duplicate-reply-address-decorator" | "invalid-reply-address-location" | "reply-channel-not-a-channel" | "reply-address-needs-dynamic-channel" | "reply-without-action" | "duplicate-binding" | "empty-binding-protocol" | "invalid-binding-config" | "invalid-binding-field" | "invalid-required-binding-field" | "missing-binding-field" | "binding-outside-document" | "unsupported-payload-type" | "unsupported-operation-message-type" | "unrepresentable-circular-reference", M extends keyof {
     "incomplete-effective-document": {
         readonly default: CallableMessage<["service"]>;
     };
@@ -625,6 +640,21 @@ export const createDiagnostic: <C extends "incomplete-effective-document" | "sta
     };
     "encoding-describes-no-variant": {
         readonly default: CallableMessage<["encoding"]>;
+    };
+    "unmapped-schema-scalar": {
+        readonly default: CallableMessage<["name"]>;
+    };
+    "unsupported-encoded-constraint": {
+        readonly default: CallableMessage<["keyword", "wireType"]>;
+    };
+    "unsupported-schema-keyword": {
+        readonly default: CallableMessage<["keyword"]>;
+    };
+    "invalid-schema-extension": {
+        readonly default: CallableMessage<["keyword", "reason"]>;
+    };
+    "schema-extension-overrides-contract": {
+        readonly default: CallableMessage<["keyword"]>;
     };
     "missing-discriminator-property": {
         readonly default: CallableMessage<["property"]>;
@@ -1021,6 +1051,21 @@ readonly default: CallableMessage<["decorator"]>;
 };
 "encoding-describes-no-variant": {
 readonly default: CallableMessage<["encoding"]>;
+};
+"unmapped-schema-scalar": {
+readonly default: CallableMessage<["name"]>;
+};
+"unsupported-encoded-constraint": {
+readonly default: CallableMessage<["keyword", "wireType"]>;
+};
+"unsupported-schema-keyword": {
+readonly default: CallableMessage<["keyword"]>;
+};
+"invalid-schema-extension": {
+readonly default: CallableMessage<["keyword", "reason"]>;
+};
+"schema-extension-overrides-contract": {
+readonly default: CallableMessage<["keyword"]>;
 };
 "missing-discriminator-property": {
 readonly default: CallableMessage<["property"]>;
@@ -1722,7 +1767,7 @@ export interface ReplyAddressState {
 }
 
 // @public
-export const reportDiagnostic: <C extends "incomplete-effective-document" | "stale-effective-declaration" | "unknown-service" | "ambiguous-service-selection" | "unowned-application-declaration" | "cross-service-reference" | "ambiguous-security-scheme" | "invalid-output-file" | "duplicate-output-file" | "multiple-services" | "unserializable-example" | "visibility-not-applied" | "unserializable-default" | "unrepresentable-numeric-constraint" | "unsupported-temporal-range-constraint" | "encoding-describes-no-variant" | "missing-discriminator-property" | "optional-discriminator-property" | "encoded-name-override-conflict" | "never-typed-property-override" | "duplicate-schema-key" | "payload-schema-key-taken" | "raw-schema-key-taken" | "preview-feature-unavailable" | "protobuf-artifact-unavailable" | "header-on-generated-payload" | "avro-artifact-unavailable" | "avro-library-missing" | "conflicting-generated-schema-source" | "conflicting-message-schema-source" | "duplicate-message-key" | "duplicate-message-decorator" | "message-key-shadows-schema-key" | "sanitized-message-key" | "duplicate-content-type-decorator" | "empty-content-type" | "duplicate-headers-decorator" | "duplicate-message-headers" | "duplicate-raw-payload-decorator" | "duplicate-raw-headers-decorator" | "empty-schema-format" | "unknown-schema-format" | "invalid-raw-schema" | "non-string-raw-schema" | "string-raw-schema" | "raw-schema-local-ref" | "unresolved-raw-schema-ref" | "raw-payload-lifted-header" | "headers-not-object" | "nested-header-ignored" | "inherited-header-ignored" | "inherited-header-overridden" | "discriminated-lifted-header" | "content-type-header-conflict" | "duplicate-correlation-id-decorator" | "invalid-correlation-id-location" | "empty-message-example" | "unserializable-message-example" | "empty-tag-name" | "conflicting-tag-metadata" | "invalid-extension-key" | "duplicate-extension-key" | "unserializable-extension" | "extension-target-not-emitted" | "duplicate-server-name" | "empty-server-field" | "server-outside-service" | "invalid-server-name" | "empty-channel-address" | "invalid-channel-address" | "invalid-channel-param-name" | "empty-channel-id" | "duplicate-channel-decorator" | "duplicate-dynamic-channel-decorator" | "conflicting-channel-decorators" | "duplicate-channel-id" | "duplicate-channel-address" | "channel-no-messages" | "missing-channel-param" | "unused-channel-param" | "non-string-channel-param" | "optional-channel-param" | "conflicting-channel-param" | "duplicate-parameter-location-decorator" | "invalid-parameter-location" | "duplicate-use-server" | "invalid-use-server-name" | "undeclared-used-server" | "use-server-without-channel" | "undeclared-server-variable" | "unused-server-variable" | "blank-server-variable-value" | "duplicate-server-variable-value" | "server-variable-default-not-in-enum" | "duplicate-security-scheme-name" | "invalid-security-scheme-name" | "empty-security-scheme-field" | "blank-security-scope-name" | "unknown-oauth-scope" | "invalid-url" | "empty-info-version" | "empty-license-name" | "duplicate-info-decorator" | "missing-oauth-flow-url" | "empty-oauth-flows" | "use-security-outside-server" | "undeclared-security-scheme" | "duplicate-send-decorator" | "duplicate-receive-decorator" | "conflicting-operation-actions" | "empty-operation-id" | "duplicate-operation-id" | "operation-without-channel" | "duplicate-reply-channel-decorator" | "duplicate-reply-address-decorator" | "invalid-reply-address-location" | "reply-channel-not-a-channel" | "reply-address-needs-dynamic-channel" | "reply-without-action" | "duplicate-binding" | "empty-binding-protocol" | "invalid-binding-config" | "invalid-binding-field" | "invalid-required-binding-field" | "missing-binding-field" | "binding-outside-document" | "unsupported-payload-type" | "unsupported-operation-message-type" | "unrepresentable-circular-reference", M extends keyof {
+export const reportDiagnostic: <C extends "incomplete-effective-document" | "stale-effective-declaration" | "unknown-service" | "ambiguous-service-selection" | "unowned-application-declaration" | "cross-service-reference" | "ambiguous-security-scheme" | "invalid-output-file" | "duplicate-output-file" | "multiple-services" | "unserializable-example" | "visibility-not-applied" | "unserializable-default" | "unrepresentable-numeric-constraint" | "unsupported-temporal-range-constraint" | "encoding-describes-no-variant" | "unmapped-schema-scalar" | "unsupported-encoded-constraint" | "unsupported-schema-keyword" | "invalid-schema-extension" | "schema-extension-overrides-contract" | "missing-discriminator-property" | "optional-discriminator-property" | "encoded-name-override-conflict" | "never-typed-property-override" | "duplicate-schema-key" | "payload-schema-key-taken" | "raw-schema-key-taken" | "preview-feature-unavailable" | "protobuf-artifact-unavailable" | "header-on-generated-payload" | "avro-artifact-unavailable" | "avro-library-missing" | "conflicting-generated-schema-source" | "conflicting-message-schema-source" | "duplicate-message-key" | "duplicate-message-decorator" | "message-key-shadows-schema-key" | "sanitized-message-key" | "duplicate-content-type-decorator" | "empty-content-type" | "duplicate-headers-decorator" | "duplicate-message-headers" | "duplicate-raw-payload-decorator" | "duplicate-raw-headers-decorator" | "empty-schema-format" | "unknown-schema-format" | "invalid-raw-schema" | "non-string-raw-schema" | "string-raw-schema" | "raw-schema-local-ref" | "unresolved-raw-schema-ref" | "raw-payload-lifted-header" | "headers-not-object" | "nested-header-ignored" | "inherited-header-ignored" | "inherited-header-overridden" | "discriminated-lifted-header" | "content-type-header-conflict" | "duplicate-correlation-id-decorator" | "invalid-correlation-id-location" | "empty-message-example" | "unserializable-message-example" | "empty-tag-name" | "conflicting-tag-metadata" | "invalid-extension-key" | "duplicate-extension-key" | "unserializable-extension" | "extension-target-not-emitted" | "duplicate-server-name" | "empty-server-field" | "server-outside-service" | "invalid-server-name" | "empty-channel-address" | "invalid-channel-address" | "invalid-channel-param-name" | "empty-channel-id" | "duplicate-channel-decorator" | "duplicate-dynamic-channel-decorator" | "conflicting-channel-decorators" | "duplicate-channel-id" | "duplicate-channel-address" | "channel-no-messages" | "missing-channel-param" | "unused-channel-param" | "non-string-channel-param" | "optional-channel-param" | "conflicting-channel-param" | "duplicate-parameter-location-decorator" | "invalid-parameter-location" | "duplicate-use-server" | "invalid-use-server-name" | "undeclared-used-server" | "use-server-without-channel" | "undeclared-server-variable" | "unused-server-variable" | "blank-server-variable-value" | "duplicate-server-variable-value" | "server-variable-default-not-in-enum" | "duplicate-security-scheme-name" | "invalid-security-scheme-name" | "empty-security-scheme-field" | "blank-security-scope-name" | "unknown-oauth-scope" | "invalid-url" | "empty-info-version" | "empty-license-name" | "duplicate-info-decorator" | "missing-oauth-flow-url" | "empty-oauth-flows" | "use-security-outside-server" | "undeclared-security-scheme" | "duplicate-send-decorator" | "duplicate-receive-decorator" | "conflicting-operation-actions" | "empty-operation-id" | "duplicate-operation-id" | "operation-without-channel" | "duplicate-reply-channel-decorator" | "duplicate-reply-address-decorator" | "invalid-reply-address-location" | "reply-channel-not-a-channel" | "reply-address-needs-dynamic-channel" | "reply-without-action" | "duplicate-binding" | "empty-binding-protocol" | "invalid-binding-config" | "invalid-binding-field" | "invalid-required-binding-field" | "missing-binding-field" | "binding-outside-document" | "unsupported-payload-type" | "unsupported-operation-message-type" | "unrepresentable-circular-reference", M extends keyof {
     "incomplete-effective-document": {
         readonly default: CallableMessage<["service"]>;
     };
@@ -1770,6 +1815,21 @@ export const reportDiagnostic: <C extends "incomplete-effective-document" | "sta
     };
     "encoding-describes-no-variant": {
         readonly default: CallableMessage<["encoding"]>;
+    };
+    "unmapped-schema-scalar": {
+        readonly default: CallableMessage<["name"]>;
+    };
+    "unsupported-encoded-constraint": {
+        readonly default: CallableMessage<["keyword", "wireType"]>;
+    };
+    "unsupported-schema-keyword": {
+        readonly default: CallableMessage<["keyword"]>;
+    };
+    "invalid-schema-extension": {
+        readonly default: CallableMessage<["keyword", "reason"]>;
+    };
+    "schema-extension-overrides-contract": {
+        readonly default: CallableMessage<["keyword"]>;
     };
     "missing-discriminator-property": {
         readonly default: CallableMessage<["property"]>;
@@ -2166,6 +2226,21 @@ readonly default: CallableMessage<["decorator"]>;
 };
 "encoding-describes-no-variant": {
 readonly default: CallableMessage<["encoding"]>;
+};
+"unmapped-schema-scalar": {
+readonly default: CallableMessage<["name"]>;
+};
+"unsupported-encoded-constraint": {
+readonly default: CallableMessage<["keyword", "wireType"]>;
+};
+"unsupported-schema-keyword": {
+readonly default: CallableMessage<["keyword"]>;
+};
+"invalid-schema-extension": {
+readonly default: CallableMessage<["keyword", "reason"]>;
+};
+"schema-extension-overrides-contract": {
+readonly default: CallableMessage<["keyword"]>;
 };
 "missing-discriminator-property": {
 readonly default: CallableMessage<["property"]>;

@@ -61,6 +61,7 @@ import {
 } from "../types.js";
 import { avroFullName, avroNamespaceOf } from "./full-names.js";
 import { applyLogicalType, namedTypeOf } from "./logical-types.js";
+import { unsupportedAvroMetadata } from "./metadata.js";
 import { avroScalarFor, scalarTableFor, type AvroScalarTable } from "./scalars.js";
 
 /**
@@ -92,6 +93,7 @@ interface WalkContext {
   readonly scalars: AvroScalarTable;
   readonly defined: Map<string, AvroDeclaration>;
   readonly refusedScalars: Set<Scalar>;
+  readonly checkedMetadata: Map<Type, boolean>;
   readonly diagnostics: Diagnostic[];
 }
 
@@ -155,6 +157,7 @@ export function buildAvroRecordWithDiagnostics(
     scalars: scalarTableFor(program),
     defined: new Map(),
     refusedScalars: new Set(),
+    checkedMetadata: new Map(),
     diagnostics,
   };
 
@@ -216,6 +219,33 @@ function refuse(context: WalkContext, diagnostic: Diagnostic): void {
   context.diagnostics.push(diagnostic);
 }
 
+function checkMetadata(context: WalkContext, type: Type): boolean {
+  const previous = context.checkedMetadata.get(type);
+  if (previous !== undefined) return previous;
+  const unsupported = unsupportedAvroMetadata(context.program, type);
+  for (const metadata of unsupported) {
+    refuse(
+      context,
+      createDiagnostic({
+        code: "unsupported-type",
+        messageId: "metadata",
+        format: { name: getTypeName(type), metadata },
+        target: type,
+      }),
+    );
+  }
+  const supported = unsupported.length === 0;
+  context.checkedMetadata.set(type, supported);
+  return supported;
+}
+
+function checkScalarMetadata(context: WalkContext, scalar: Scalar): boolean {
+  for (let current: Scalar | undefined = scalar; current; current = current.baseScalar) {
+    if (!checkMetadata(context, current)) return false;
+  }
+  return true;
+}
+
 /**
  * Collects one refusal that points at a scalar declaration, and collects it
  * once.
@@ -248,6 +278,7 @@ function typeFor(
   type: Type,
   target: DiagnosticTarget,
 ): AvroSchema | undefined {
+  if (!checkMetadata(context, type)) return undefined;
   switch (type.kind) {
     case "Scalar":
       return scalarFor(context, type, target);
@@ -300,6 +331,7 @@ function scalarFor(
   scalar: Scalar,
   target: DiagnosticTarget,
 ): AvroSchema | undefined {
+  if (!checkScalarMetadata(context, scalar)) return undefined;
   const size = inheritedMark(scalar, (one) => getAvroFixedSize(context.program, one));
   let base: AvroSchema | undefined;
   if (size === undefined) {
@@ -537,6 +569,7 @@ function namedModelFor(
   model: Model,
   target: DiagnosticTarget,
 ): AvroRecord | AvroFixed | string | undefined {
+  if (!checkMetadata(context, model)) return undefined;
   if (model.name === "") {
     refuse(context, createDiagnostic({ code: "unsupported-type", messageId: "anonymous", target }));
     return undefined;
@@ -776,6 +809,7 @@ function branchKey(schema: AvroBranch): string {
  * @param property - The property to inspect
  */
 function fieldFor(context: WalkContext, property: ModelProperty): AvroField | undefined {
+  if (!checkMetadata(context, property)) return undefined;
   if (!isAvroName(property.name)) {
     refuse(
       context,
@@ -882,7 +916,7 @@ function defaultOf(
 ): { value: AvroDefault } | undefined {
   let serialized: unknown;
   try {
-    serialized = serializeValueAsJson(context.program, written, serializationTargetOf(property));
+    serialized = serializeDefaultValue(context.program, written, serializationTargetOf(property));
   } catch (error) {
     if (!(error instanceof UnserializableValueError)) {
       throw error;
@@ -891,15 +925,32 @@ function defaultOf(
     return undefined;
   }
 
-  if (serialized === undefined || (serialized === null && written.valueKind !== "NullValue")) {
-    refuseDefault(
-      context,
-      property,
+  return { value: serialized as AvroDefault };
+}
+
+/**
+ * Avro record defaults use source field names, not JSON-media encoded names.
+ * The compiler's object serializer applies JSON names, so only scalar leaves
+ * go through it; object and collection values retain the author's field names.
+ */
+function serializeDefaultValue(program: Program, value: Value, type: Type): unknown {
+  if (value.valueKind === "ObjectValue") {
+    const result: Record<string, unknown> = {};
+    for (const property of value.properties.values()) {
+      result[property.name] = serializeDefaultValue(program, property.value, property.value.type);
+    }
+    return result;
+  }
+  if (value.valueKind === "ArrayValue") {
+    return value.values.map((item) => serializeDefaultValue(program, item, item.type));
+  }
+  const serialized = serializeValueAsJson(program, value, type);
+  if (serialized === undefined || (serialized === null && value.valueKind !== "NullValue")) {
+    throw new UnserializableValueError(
       "The compiler had no JSON value for it. A number no double holds is one cause.",
     );
-    return undefined;
   }
-  return { value: serialized as AvroDefault };
+  return serialized;
 }
 
 /**

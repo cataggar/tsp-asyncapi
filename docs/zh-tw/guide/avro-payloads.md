@@ -271,3 +271,21 @@ Avro emitter 每個 record 寫一個檔案。路徑由 Avro namespace 決定，�
 [`@rawPayload`](../reference/decorators/messages#rawpayload) 用來手寫其他語言的 schema，優先於產生的 schema。
 
 同時帶兩者的 model 會回報 [`conflicting-message-schema-source`](../reference/diagnostics#conflicting-message-schema-source)。文件保留作者手寫的 schema。要改用產生的 schema，就從該 model 移除 `@rawPayload`。
+
+## 契約保真度與獨立版本
+
+產生的 payload 宣告為 **Avro 1.9.0**，[轉換與 logical type 的限制](./avro-schemas#logical-type)也適用於此。無法保留的編譯器限制、編碼、受限可見性或判別式封套會以 `tsp-asyncapi/avro-artifact-unavailable` 停止產生，訊息包含第一個 Avro 拒絕原因。直接執行 Avro emitter 則可看到其 `tsp-avro/unsupported-type` 原因。不會輸出部分 record 或退回 JSON schema。
+
+二進位基準測試獨立編譯新舊 TypeSpec 原始碼，維持 record 名稱 `contract.Event`。測試使用真正輸出的 schema、各自建立的 `avsc` 型別、`reader.createResolver(writer)`、writer 編碼與 reader 解碼。每種變更都有舊→舊、舊→新、新→舊與新→新的對照；預期拒絕也是通過的測試，而非跳過的案例。
+
+| 變更                 | 證據與 consumer 假設                                                                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 新增／移除選用欄位   | 帶 reader 預設值的 null union 可讀取；未知的 writer 欄位會被略過。省略的選用欄位會正規化為自身具有 `null` 的欄位。                                  |
+| 新增／移除必要欄位   | reader 所需的欄位若不在 writer 中，必須有 reader 預設值，否則 resolver 建立失敗。測試核對明確的預設值。                                             |
+| 重新命名／別名       | 新 reader 的 `@Avro.aliases("oldName")` 可讀取舊欄位，固定不變的舊 reader 不會自動得知此別名。                                                      |
+| 新增／移除 enum 成員 | 安裝的 `avsc` 會在建立 resolver 時拒絕含有 reader 未知符號的 writer enum，除非 reader 宣告 fallback。使用 fallback 屬於以預設值接受，不是保留原值。 |
+| 型別／選用性變更     | `int`→`long` 提升有方向性。reader 無法處理 null 時，安裝的 `avsc` 會在建立 resolver 時拒絕可為 null 的 writer，即使特定輸入是字串。                 |
+
+`avsc` 使用未包裝的 union，允許輸入物件包含未宣告的屬性，但不會將其序列化。測試未安裝 logical adapter；時間戳單位、decimal scale 與 UUID 語意需要分開檢查註記及值的解釋。JavaScript 數值測試不能證明完整的有號 64 位元精度。
+
+官方 AsyncAPI parser 檢查文件與嵌入 schema 的結構，不驗證 message 執行個體。payload 測試使用手寫值；獨立的 `@headers` 仍是原生 JSON schema，不是 Avro 欄位。這是特定 codec 與數值的有限證據，不是 schema 包含關係證明、registry 相容性模式、ProtoJSON／HTTP 相容性聲明或 broker 傳遞保證。這些是獨立版本基準測試，不涵蓋版本裝飾器或保留版本的投影。
