@@ -100,11 +100,61 @@ Avro logical type 名稱、單位、decimal precision/scale 與 fixed size 直�
 schema；沒有 custom logical adapter 的 avsc 不證明它們的語意。`local-timestamp-*`
 不屬於宣告的 Avro 1.9.0，因此拒絕。
 
+## 保留訊息的版本化驗證
+
+Retention suite 透過[版本化 adapter](../versioning.md) 使用真正的 TypeSpec
+`@versioned` v1/v2/v3 檢視，不修改 JSON schema 來假裝版本變更。
+接受結果判定之前，會先比對完整輸出集合 `asyncapi.1.0.json`、`asyncapi.2.0.json`、
+`asyncapi.3.0.json`、各自的 `info.version`、AsyncAPI **3.1.0** 目標，
+以及有效的 payload/header 欄位、必填集合、enum 成員、型別與限制邊界。
+
+每個 JSON 見證值先通過自己的 **producer snapshot**，再由 `readJson` 序列化一次。
+後續所有 consumer 重複使用保留下來的同一份值與序列化文字，不依 consumer 形狀重建、
+改名、強制轉型、注入預設值或移除未知欄位。十個可個別歸因的 fixture 包含 34 筆
+producer 訊息、204 個 consumer 結果（三個版本、兩種政策），其中 70 個預期拒絕。
+
+| 案例        | 真正的版本變更                          | 保留訊息的證據                                                                     |
+| ----------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| R01         | v2 新增選填欄位                         | 只含已宣告欄位的 v1 訊息可繼續使用；舊契約合法的 `note: 42` 會與新的選填字串衝突。 |
+| R02         | v2 新增有預設值的必填欄位               | v1 省略欄位的訊息在 v2/v3 被拒絕，JSON 預設值不會補救。                            |
+| R03a / R03b | 選填變必填／必填變選填                  | 分開的 fixture 呈現兩個方向，避免不同變更互相掩蓋。                                |
+| R04         | v2 移除必填欄位                         | 寬容 reader 接受舊的額外欄位但不改寫資料；舊 reader 拒絕缺少該欄位的新訊息。       |
+| R05         | v2 與 v3 分別改名                       | 舊名、中間名稱與現名保持分離，佇列中的值不會自動遷移。                             |
+| R06         | v2 新增 enum 成員，v3 移除另一成員      | v1 舊值可通過 v2 卻被 v3 拒絕；新成員也不被舊 consumer 接受。                      |
+| R07         | v2 縮緊整數範圍，v3 放寬                | 保留的端點值被中間版本拒絕；新放寬的值被舊 consumer 拒絕。                         |
+| R08         | 字串改成整數，再改成整數或 null         | 不強制轉換數字文字，null 只被真正允許它的 snapshot 接受。                          |
+| R09         | v2 新增選填應用程式 header，v3 改成必填 | Header 省略與未知名稱衝突會獨立失敗，不被未變的 payload 掩蓋。                     |
+
+**寬容（tolerant）**只表示接受未知的 payload/header 欄位，不表示接受錯誤型別、
+缺少必填欄位、未知 enum、無效 format 或違反邊界的值。
+**嚴格（strict）**使用相同 schema 檢查，再加上明確的 consumer 已知欄位集合；
+未宣告 headers 的版本不認得任何 header 名稱。所有 fixture producer 都使用 open
+profile，所以 open producer 的額外欄位見證值，即使交給同版本 strict consumer 也可能失敗。
+
+另有部署控制分別輸出明確選取的 `"1.0"`、`"2.0"`、`"3.0"`。同一份保留中的
+v1 `amount: 0` 被 v2 的下限 10 拒絕，再被 v3 的下限 0 接受。
+這是假設原始訊息仍可取得，不宣稱 broker 在較早 consumer 嘗試交付後仍保留它。
+
+有限的版本化 **Avro 1.9** 與 **proto3** 控制也只編碼 writer 位元組一次，
+再以獨立建立的 v1/v2/v3 codec 讀取同一份位元組。Avro 比對精確的 reader 預設值
+（`note: null`、`generation: 0`）、被略過的欄位，以及 v3 必填欄位沒有預設值時的
+兩次 resolver 拒絕。v1 relay 會遺失 v3 內容，後來的預設值不會還原原值。
+Protobuf 分別判定未知 tag 遺失與自有欄位缺席。v3 可成功解碼 v1 位元組，但
+**同一份 TypeSpec 來源**的 native v3 檢視會拒絕缺少來源必填 `generation` 的訊息。
+這些語意內容判定與保留位元組未改變是不同證據，不保證解碼再編碼後位元組相同。
+
+較完整的[獨立二進位 writer/reader 矩陣](https://github.com/cataggar/tsp-asyncapi/blob/main/test/integration/contract-binary-evolution.test.ts)
+仍涵蓋 alias、enum、型別/tag 變更及 reader/writer 限制；retention 控制不重複或
+擴大那份能力宣告。測試把 producer schema 與 codec 身分和訊息一起保留
+（Avro resolver 需要 writer schema），不模擬 schema registry 可用性、應用程式遷移、
+broker 儲存或交付操作。
+
 ## 範圍與執行
 
 既有 Vitest runner 自動探索 `contract-fidelity`、`contract-native-diagnostics`、
 `contract-encoded-union-references`、`contract-validator-draft07`、`contract-evolution`、
-`contract-binary-fidelity`、`contract-binary-evolution`。
+`contract-binary-fidelity`、`contract-binary-evolution`、
+`contract-versioned-retention`、`contract-versioned-binary-retention`。
 資料列在 `test/fixtures/contract-fidelity`，二進位 pair 的預期值在各 suite。
 預期拒絕是一般 assertion，不是 skip。產生的有限整數見證使用 seed `3107`。
 
@@ -112,11 +162,11 @@ schema；沒有 custom logical adapter 的 avsc 不證明它們的語意。`loca
 先 build 再跑選定的 contract suite。驗證器僅為 test utility，不加入 emitter runtime。
 
 有限見證是指定 profile 的反例或證據，**不是** schema 語言包含關係、所有 client
-或所有歷史 producer 的相容性證明。Version-generated V1/V2/V3 與保留訊息視窗，
-等 version-aware emission 完成後另行實作。此處獨立編譯的舊／新來源不冒充 versioning。
+或所有歷史 producer 的相容性證明。獨立編譯的新舊來源與真正版本化的 retention
+矩陣提供不同證據，都不保證每份佇列訊息或每種保留視窗的相容性。
 
 AsyncAPI 使用 draft-07、nullable union 與自己的 discriminator，不是 OpenAPI 3.0
 `nullable` 或 HTTP request/response visibility 投影。部分 lifecycle visibility 不會
 選擇 send/receive shape。JSON encoded name 依媒體型別區分，不是二進位 alias。
 應用程式 headers 不是 broker-native metadata；測試不證明交付、排序、TTL、
-settlement、retry、deduplication、idempotency 或業務語意。
+settlement、retry、exactly-once processing、deduplication、idempotency 或業務語意。

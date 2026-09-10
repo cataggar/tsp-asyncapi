@@ -123,6 +123,35 @@ resolution. Recursive/shared references stay within the selected document.
 Generated Avro and Protobuf previews read that same effective graph, subject to
 their existing supported-feature restrictions.
 
+## Retained messages across deployments
+
+Selecting a contract version does not migrate messages already in a queue.
+In the example above, a v1 payload containing `legacy` does not acquire the v2
+required `replacement` field. Even an optional addition can reject a retained
+message when the old open producer already used that name with a different type.
+
+The [version-generated retention matrix](./schema-conversion/contract-fidelity.md#version-generated-retained-messages)
+checks actual v1/v2/v3 output names and live shapes before admission, captures
+producer-valid JSON once, and reuses it for every old/new consumer direction.
+Separate fixtures cover additions, both optionality changes, removal, successive
+renames, enum evolution, constraints, wire type/nullability and application
+headers. Explicitly selected deployments also read the same v1 record at v2/v3.
+Tolerant consumers allow unknown fields but still enforce schema assertions;
+strict consumers additionally reject names absent from their payload/header
+contracts. Neither profile rewrites the stored value.
+
+Bounded preview controls retain real Avro/proto3 bytes and the producer schema.
+Avro reader defaults and field loss are asserted as changed semantic content,
+not original-value preservation. Protobuf may decode without a source-required
+field, and the pinned reader can lose unknown tags on a relay; the same source's
+native versioned schema supplies the requiredness control.
+The wider [independent binary evolution coverage](https://github.com/cataggar/tsp-asyncapi/blob/main/test/integration/contract-binary-evolution.test.ts)
+remains separate from these version-generated witnesses.
+
+The harness assumes the original message and writer contract remain available;
+no broker is run. Compatibility results prove neither delivery nor settlement,
+TTL, retries, ordering, exactly-once processing, or business-semantic correctness.
+
 ## Limits and refusals
 
 - TypeSpec validates decorator targets. For example, version a channel
