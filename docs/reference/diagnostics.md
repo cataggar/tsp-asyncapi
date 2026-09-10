@@ -8,6 +8,19 @@ Every warning and error the emitter can report, with what causes it and how to f
 
 ## Errors
 
+### `invalid-version-selection`
+
+`version` requires one unambiguous selected versioned service and one exact root
+enum value. Unknown values, values identifying multiple members, or unversioned
+services are errors. No files are written.
+
+### `unsupported-versioned-contract`
+
+A selected view cannot represent the requested contract: a missing dependency
+choice, removed `@headers` target, versioned raw body, or per-view schema/channel
+error would produce misleading output. The entire output set is withheld.
+See [versioning limitations](../guide/versioning#limits-and-refusals).
+
 ### `incomplete-effective-document`
 
 An adapter supplied a changed service graph without a complete live declaration boundary. Namespace maps do not contain every retained alias-only message, channel, or action instance, so automatic discovery could silently lose a contract. The adapter must include all retained live instances and deliberately omit removed ones. The context is refused instead of emitting a partial document.
@@ -786,6 +799,12 @@ No document is written. Every Avro payload the project asked for is missing, and
 **Fix:** install `tsp-avro`, or remove `avro` from `preview-features` in `tspconfig.yaml`.
 
 ## Warnings
+
+### `version-info-conflict`
+
+Authored `@info.version` differs from the selected root version. The document
+uses the selected value, and this warning does not prevent output. Metadata
+never selects a schema version.
 
 ### `duplicate-channel-address`
 

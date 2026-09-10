@@ -8,6 +8,17 @@ outline: 2
 
 ## 錯誤
 
+### `invalid-version-selection`
+
+`version` 需要單一明確的版本化 service，並精確指定根版本 enum 值。未知值、
+對應多個成員的值，或未版本化的 service 都是錯誤。不會寫出任何檔案。
+
+### `unsupported-versioned-contract`
+
+選定檢視無法描述契約，例如缺少相依版本選擇、`@headers` 目標已移除、raw body
+含有版本化欄位，或個別版本的 schema/channel 發生錯誤。為避免誤導，整組輸出都
+不會寫入。請參閱[版本化限制](../guide/versioning#限制與拒絕輸出)。
+
 ### `incomplete-effective-document`
 
 Adapter 提供了變更後的 service graph，卻沒有完整的 live 宣告邊界。Namespace map 不包含所有保留的 alias-only message、channel 或 action 執行個體，自動探索可能靜默遺失合約。Adapter 必須列入所有保留的 live 執行個體，並明確省略已移除的項目。Context 會被拒絕，而不是輸出不完整的文件。
@@ -781,6 +792,11 @@ model 屬於哪個 package，由上層最近一個帶 `@Protobuf.package` 的 na
 **修法：** 安裝 `tsp-avro`，或是從 `tspconfig.yaml` 的 `preview-features` 移除 `avro`。
 
 ## 警告
+
+### `version-info-conflict`
+
+作者提供的 `@info.version` 與選取的根版本不同。文件使用選定值，這項警告不會
+阻止輸出；中繼資料不會選取 schema 版本。
 
 ### `duplicate-channel-address`
 

@@ -3,6 +3,7 @@ import {
   ListenerFlow,
   navigateType,
   type Namespace,
+  type Model,
   type Operation,
   type Program,
   type SemanticNodeListener,
@@ -30,6 +31,11 @@ export interface EffectiveDocumentGraph {
    * the adapter's removal decision, not permission to recover source state.
    */
   readonly declarations?: DocumentDeclarations;
+  readonly version?: string;
+  /** Resolved root/dependency values, keyed by original versioned namespace FQN. */
+  readonly versionChoices?: ReadonlyMap<string, string>;
+  /** Provenance for diagnostics only; never used for discovery or artifacts. */
+  readonly sourceModels?: ReadonlyMap<Model, Model>;
 }
 
 /** Immutable inputs for one resolve/lower build. No per-build caches live here. @internal */
@@ -40,6 +46,9 @@ export interface DocumentContext {
   readonly service: Service | undefined;
   readonly root: Namespace;
   readonly realm: Realm | undefined;
+  readonly version: string | undefined;
+  readonly versionChoices: ReadonlyMap<string, string> | undefined;
+  readonly sourceModels: ReadonlyMap<Model, Model> | undefined;
   /** Undefined explicitly selects legacy whole-program discovery. */
   readonly declarations: DocumentDeclarations | undefined;
   readonly artifactInput: SchemaArtifactInput;
@@ -74,6 +83,9 @@ export function createDocumentContext(
     service: effective === undefined ? originalService : effective.service,
     root,
     realm: effective?.realm,
+    version: effective?.version,
+    versionChoices: effective?.versionChoices,
+    sourceModels: effective?.sourceModels,
     declarations,
     artifactInput: Object.freeze({ program, models: Object.freeze(models) }),
   });

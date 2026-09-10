@@ -70,6 +70,9 @@ export interface AsyncAPIEmitterOptions {
   /** Select one exact fully qualified service namespace. By default, emit all services. */
   service?: string;
 
+  /** Select one exact root version enum value for one selected versioned service. */
+  version?: string;
+
   /**
    * The format of the output file.
    * @defaultValue "yaml"
@@ -107,6 +110,7 @@ export const EmitterOptionsSchema: JSONSchemaType<AsyncAPIEmitterOptions> = {
   properties: {
     "output-file": { type: "string", nullable: true },
     service: { type: "string", nullable: true },
+    version: { type: "string", nullable: true },
     "file-type": { type: "string", enum: ["yaml", "json"], nullable: true },
     "asyncapi-id": { type: "string", nullable: true },
     "default-content-type": { type: "string", nullable: true },

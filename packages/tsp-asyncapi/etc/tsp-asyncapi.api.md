@@ -103,6 +103,7 @@ export interface AsyncAPIEmitterOptions {
     "output-file"?: string;
     "preview-features"?: PreviewFeature[];
     service?: string;
+    version?: string;
 }
 
 export { BindingObject }

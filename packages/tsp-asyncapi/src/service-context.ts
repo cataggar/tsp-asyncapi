@@ -75,7 +75,7 @@ function collectOperationSources(operation: Operation, carried: Set<Operation>):
 /** Validate original application roots once, even when a selector excludes some services. @internal */
 export function validateServiceOwnership(program: Program, services: readonly Service[]): void {
   if (services.length < 2) return;
-  const declarations = originalDeclarations(program);
+  const declarations = discoverOriginalDocumentDeclarations(program);
   const carried = sourceCarriers(program, declarations.operations);
   for (const channel of declarations.channels) {
     if (serviceOwner(program, channel) !== undefined || getChannel(program, channel) === undefined)
@@ -102,7 +102,8 @@ export function validateServiceOwnership(program: Program, services: readonly Se
   }
 }
 
-function originalDeclarations(program: Program): DocumentDeclarations {
+/** Original-only inventory, captured before mutation can replay erased instance state. @internal */
+export function discoverOriginalDocumentDeclarations(program: Program): DocumentDeclarations {
   const declarations = discoverDocumentDeclarations(program.getGlobalNamespaceType());
   const models = new Set(declarations.models);
   const channels = new Set(declarations.channels);
@@ -320,7 +321,7 @@ export function createServiceDocumentContext(
   }
   const root = effective?.root ?? originalService.type;
   const service = effective === undefined ? originalService : effective.service;
-  const all = effective?.declarations ?? originalDeclarations(program);
+  const all = effective?.declarations ?? discoverOriginalDocumentDeclarations(program);
   const owns: Owns = (type) => {
     const owner = serviceOwner(program, type);
     return owner === root || (owner === undefined && originalServices.length === 1);

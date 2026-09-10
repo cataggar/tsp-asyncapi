@@ -75,6 +75,7 @@
     "@typespec/openapi": "1.16.0",
     "@typespec/openapi3": "1.16.0",
     "@typespec/protobuf": "0.86.0",
+    "@typespec/versioning": "0.86.0",
     "@vitest/coverage-v8": "^4.1.10",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

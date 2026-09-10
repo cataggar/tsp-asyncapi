@@ -236,6 +236,14 @@ components:
 | `default-content-type` | `string`   | -               | 訊息 payload 的預設 content type，對應 `defaultContentType`。 |
 | `preview-features`     | `string[]` | `[]`            | 開啟預覽功能。保留的名稱是 `protobuf` 與 `avro`。             |
 
+## 版本化契約
+
+Compiler 1.16.0 搭配 `@typespec/versioning` 0.86.0，會依根版本及其相依版本輸出
+個別契約。可搭配 `service` 及精確 enum 值的 `version` 選項；
+`@info.version` 是中繼資料，不會選取 schema。版本化 alias 與 schema 會先解析，
+再套用 service 所有權；共用檔名檢查會防止覆寫。
+請參閱[版本化契約](docs/zh-tw/guide/versioning.md)。
+
 ## 預覽功能
 
 > **注意：** 預覽功能的規格都可能在未來改變。

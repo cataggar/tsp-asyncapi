@@ -14,6 +14,7 @@
  */
 
 import { Program, Service } from "@typespec/compiler";
+import { getInfo, reportDiagnostic } from "tsp-asyncapi-core";
 import type { AsyncAPIEmitterOptions } from "./emitter-options.js";
 import {
   BindingPlacements,
@@ -64,9 +65,21 @@ export async function buildDocumentFromContext(
   // passed explicitly, so two builds of one program cannot see each other's.
   const placements = new BindingPlacements();
   const { program, service, declarations } = context;
-  return lowerDocument(
+  const doc = lowerDocument(
     program,
     resolveService(program, service, placements, artifacts, declarations),
     options,
   );
+  if (context.version !== undefined) {
+    const authored = service === undefined ? undefined : getInfo(program, service.type)?.version;
+    if (authored !== undefined && authored !== context.version) {
+      reportDiagnostic(program, {
+        code: "version-info-conflict",
+        target: context.root,
+        format: { authored, version: context.version },
+      });
+    }
+    doc.info.version = context.version;
+  }
+  return doc;
 }

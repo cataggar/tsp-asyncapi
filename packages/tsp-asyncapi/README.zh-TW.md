@@ -101,6 +101,13 @@ components:
 | `default-content-type` | `string`   | 無              | 對應 `defaultContentType`        |
 | `preview-features`     | `string[]` | `[]`            | 開啟預覽功能：`protobuf`、`avro` |
 
+## 版本化
+
+需要 Node.js 22 以上。Compiler 1.16.0 搭配 versioning 0.86.0，會依根版本及其相依
+版本各自輸出契約。選用的 `version` emitter 選項精確選取 enum 值；
+`@info.version` 不會選取 schema。檔名保留版本後綴，衝突時阻止整組輸出。
+請參閱[版本化指南](https://tsp-asyncapi.marvinhsu.dev/zh-tw/guide/versioning)。
+
 ## 其他
 
 - [文件](https://tsp-asyncapi.marvinhsu.dev/)

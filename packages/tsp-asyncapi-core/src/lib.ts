@@ -48,6 +48,24 @@ export const PACKAGE_NAME = "tsp-asyncapi-core";
 export const $lib = createTypeSpecLibrary({
   name: LIBRARY_NAME,
   diagnostics: {
+    "invalid-version-selection": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Cannot select version '${"version"}': ${"reason"}. Select one versioned service and an exact version enum value.`,
+      },
+    },
+    "version-info-conflict": {
+      severity: "warning",
+      messages: {
+        default: paramMessage`@info.version '${"authored"}' differs from selected schema version '${"version"}'. The document uses '${"version"}'; @info.version is metadata, not a schema selector.`,
+      },
+    },
+    "unsupported-versioned-contract": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Cannot emit version '${"version"}': ${"reason"}. No documents were written.`,
+      },
+    },
     "incomplete-effective-document": {
       severity: "error",
       messages: {

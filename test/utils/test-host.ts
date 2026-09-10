@@ -1,4 +1,5 @@
 import { expectDiagnosticEmpty } from "@typespec/compiler/testing";
+import type { Tester } from "@typespec/compiler/testing";
 import type { Diagnostic, Program } from "@typespec/compiler";
 import { AsyncAPITester } from "#emitter/testing.js";
 import { PACKAGE_NAME } from "#emitter/lib.js";
@@ -31,8 +32,8 @@ const ENTRY_FILE = "main.tsp";
  * @param options - The emitter options
  * @returns The tester to compile with
  */
-function createTester(code: TestSource, options: Record<string, unknown>) {
-  const tester = AsyncAPITester.emit(PACKAGE_NAME, options);
+function createTester(code: TestSource, options: Record<string, unknown>, base = AsyncAPITester) {
+  const tester = base.emit(PACKAGE_NAME, options);
   if (typeof code === "string") return tester;
   const imports = Object.keys(code)
     .filter((name) => name !== ENTRY_FILE)
@@ -55,6 +56,7 @@ export async function emitOutputsWithDiagnostics(
   code: TestSource,
   options: Record<string, unknown> = {},
   includeService = false,
+  tester: Tester = AsyncAPITester,
 ) {
   // Only a single-file source gets this wrapper added. A multi-file case
   // must declare its own service, since only its author knows which file
@@ -64,7 +66,9 @@ export async function emitOutputsWithDiagnostics(
       ? `@service(#{ title: "TestService" }) namespace Test;\n${code}`
       : code;
 
-  const [result, diagnostics] = await createTester(code, options).compileAndDiagnose(fullCode);
+  const [result, diagnostics] = await createTester(code, options, tester).compileAndDiagnose(
+    fullCode,
+  );
 
   const outputs: Readonly<Record<string, string>> = { ...result.outputs };
   return { outputs, diagnostics, program: result.program };
@@ -75,13 +79,14 @@ export async function emitDocumentsWithDiagnostics(
   code: TestSource,
   options: Record<string, unknown> = {},
   includeService = false,
+  tester: Tester = AsyncAPITester,
 ): Promise<{
   documents: Readonly<Record<string, AsyncAPIDocument>>;
   outputs: Readonly<Record<string, string>>;
   diagnostics: readonly Diagnostic[];
   program: Program;
 }> {
-  const result = await emitOutputsWithDiagnostics(code, options, includeService);
+  const result = await emitOutputsWithDiagnostics(code, options, includeService, tester);
   const documents: Record<string, AsyncAPIDocument> = {};
   for (const [filename, content] of Object.entries(result.outputs)) {
     // Custom output filenames need not have the selected serialization's extension.
