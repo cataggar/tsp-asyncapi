@@ -5,7 +5,7 @@ description: "以封閉、具版本的 AsyncAPI 3.1.0 擴充描述 Service Bus �
 
 # Azure Service Bus 契約 profile
 
-**狀態：提案，等待獨立設計與實作審查。** 這是 [#5](https://github.com/cataggar/tsp-asyncapi/issues/5) 的設計交付項目，不代表 companion API 已核准。`profileVersion: "0.1.0"` 仍是暫定版本，也不是 Azure 或 AsyncAPI 官方 binding。
+**狀態：已完成初期實作設計審查，2026-09-10。** 這是 [#5](https://github.com/cataggar/tsp-asyncapi/issues/5) 的設計交付項目。[#7](https://github.com/cataggar/tsp-asyncapi/pull/7) 的獨立自動化設計審查未發現阻擋實作的正確性問題，實作協調者依照要求的實作與逐一合併流程接受此設計。此紀錄不代表人工 maintainer 簽核，也不代表 companion API 已獲准發行。`profileVersion: "0.1.0"` 不是 Azure 或 AsyncAPI 官方 binding。
 
 [English RFC](../../design/azure-service-bus-profile) |
 [規範 JSON Schema](/profiles/azure-service-bus/0.1.0/schema.json) |
@@ -199,13 +199,13 @@ Writer 需要實際 target、key、plain JSON value、來源位置，保留既�
 
 版本化整合需要 original Program、選定 live type graph、選用 Realm、穩定 service/version identity 與範圍化宣告。單靠 source-wide `$onValidate` 不足。Replay 必須針對實際 clone 記錄，不可只以 AST/Program 當 cache key。第一階段未整合的 versioned/dependency-mutated 或 multi-service profile 使用必須明確拒絕。
 
-| 審查項目                              | 狀態                                                 |
-| ------------------------------------- | ---------------------------------------------------- |
-| 2026-09-10、基準 `022e4bb` 的來源分析 | Groundwork，不是 maintainer 核准                     |
-| RFC、schema、範例與建議決策           | 提案，等待獨立審查                                   |
-| 設計核准與 merge 紀錄                 | **等待 parent 審查**，不宣稱已有人工 maintainer 簽核 |
-| #2 companion                          | 此 PR 未實作；parent 記錄核准後才開始                |
-| #6 可執行組合範例                     | 等待 #5 核准與 #2 實作                               |
+| 審查項目                              | 狀態                                                                                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-10、基準 `022e4bb` 的來源分析 | Groundwork，不是 maintainer 核准                                                                                              |
+| RFC、schema、範例與建議決策           | 2026-09-10 於 [#7](https://github.com/cataggar/tsp-asyncapi/pull/7) 完成審查，接受為初期實作契約；公開 decorator API 仍需審查 |
+| 設計核准與 merge 紀錄                 | `7ef1a8f` 的自動化審查未發現阻擋問題，協調者已接受設計；PR 會記錄實際合併，不宣稱已有人工 maintainer 簽核                     |
+| #2 companion                          | 此 PR 未實作；已審查設計合併後才開始                                                                                          |
+| #6 可執行組合範例                     | 等待 #5 核准與 #2 實作                                                                                                        |
 
 核准前可修改暫定 0.1.0；核准/發行後，接受形狀或語意變動須使用新 profile 版本與 schema 路徑。不得把未知版本默認成 0.1.0。
 

@@ -5,7 +5,7 @@ description: "RFC for a closed, versioned AsyncAPI 3.1.0 Service Bus contract pr
 
 # Azure Service Bus contract profile
 
-**Status: proposed, pending independent design and implementation review.** This is the design deliverable for [#5](https://github.com/cataggar/tsp-asyncapi/issues/5), not approval to release companion APIs. Profile `0.1.0` is provisional and is not an official Azure or AsyncAPI binding.
+**Status: reviewed for initial implementation, 2026-09-10.** This is the design deliverable for [#5](https://github.com/cataggar/tsp-asyncapi/issues/5). Independent automated design review of [#7](https://github.com/cataggar/tsp-asyncapi/pull/7) found no blocking correctness issues; the implementation coordinator accepted the design under the requested implementation and serial-merge workflow. This records the implementation design gate, not human maintainer signoff or approval to release companion APIs. Profile `0.1.0` is not an official Azure or AsyncAPI binding.
 
 [繁體中文](../zh-tw/design/azure-service-bus-profile) |
 [Normative JSON Schema](/profiles/azure-service-bus/0.1.0/schema.json) |
@@ -314,14 +314,14 @@ Proposed package: **`tsp-azure-service-bus`**, namespace **`Azure.ServiceBus`**,
 
 The only necessary new core seam is a narrow **generic extension writer**: actual target, key, plain JSON value and source provenance; same key validation, copy/serialization behavior and deterministic first-source collision diagnostics as raw `@extension`. Aggregate companion-owned config once per target/view, then write `x-azure-service-bus` once. Do not deep-import private decorators, mutate core state symbols, change first-wins to merging, add an Azure binding renderer or expand root/server placement. Read-only generic binding inspection may be added only if current public inspection is insufficient for the agreed diagnostics. Any public API must ship in an actual new release before consumers pin it.
 
-| Gate / record                                                                                            | State                                                                                  |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Roadmap source analysis, baseline `022e4bb`, 2026-09-10                                                  | Groundwork only; not maintainer approval                                               |
-| This RFC + schema + examples                                                                             | Proposed, submitted for independent review                                             |
-| Placement/closedness/IDs, scalar subset, native/mirror policy, delivery/severity, security, phase limits | Recommended decisions in this RFC; approval pending                                    |
-| Independent design review and approval/merge record                                                      | **Pending parent review**; no human maintainer signoff is asserted                     |
-| #2 companion APIs/runtime validation                                                                     | Not implemented here; begin only after parent records the review gate                  |
-| #6 runnable profile-backed composition                                                                   | After approved #5 and implemented #2; separate unversioned app entrypoints recommended |
+| Gate / record                                                                                            | State                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Roadmap source analysis, baseline `022e4bb`, 2026-09-10                                                  | Groundwork only; not maintainer approval                                                                                                                      |
+| This RFC + schema + examples                                                                             | Reviewed for initial implementation in [#7](https://github.com/cataggar/tsp-asyncapi/pull/7), 2026-09-10                                                      |
+| Placement/closedness/IDs, scalar subset, native/mirror policy, delivery/severity, security, phase limits | Accepted as the initial implementation contract; public decorator APIs still require review                                                                   |
+| Independent design review and approval/merge record                                                      | Automated review found no blockers at `7ef1a8f`; coordinator accepted the design. The PR records the eventual merge; no human maintainer signoff is asserted. |
+| #2 companion APIs/runtime validation                                                                     | Not implemented here; may begin after this reviewed design is merged                                                                                          |
+| #6 runnable profile-backed composition                                                                   | After approved #5 and implemented #2; separate unversioned app entrypoints recommended                                                                        |
 
 Before approval, edits may revise the proposed 0.1.0 artifact. After approval/publication, a changed accepted shape or meaning requires a new profile version/schema path; closed-schema readers must explicitly select a supported version. Do not silently accept a new version as 0.1.0. Package release versions evolve independently.
 
