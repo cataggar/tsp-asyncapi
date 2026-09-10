@@ -58,9 +58,10 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
     availableFeatures(providers),
   );
   if (unavailable || hasPlanningError()) return;
-  const contexts = (services.length === 0 ? [undefined] : selected).map((service) =>
-    createServiceDocumentContext(program, service, services),
-  );
+  const contexts = (services.length === 0 ? [undefined] : selected).flatMap((service) => {
+    const document = createServiceDocumentContext(program, service, services);
+    return document === undefined ? [] : [document];
+  });
   const fileType = options["file-type"] ?? "yaml";
   const outputs = planDocumentOutputs(
     program,

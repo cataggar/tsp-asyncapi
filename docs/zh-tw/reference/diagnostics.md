@@ -8,6 +8,14 @@ outline: 2
 
 ## 錯誤
 
+### `incomplete-effective-document`
+
+Adapter 提供了變更後的 service graph，卻沒有完整的 live 宣告邊界。Namespace map 不包含所有保留的 alias-only message、channel 或 action 執行個體，自動探索可能靜默遺失合約。Adapter 必須列入所有保留的 live 執行個體，並明確省略已移除的項目。Context 會被拒絕，而不是輸出不完整的文件。
+
+### `stale-effective-declaration`
+
+變更後的 service graph 包含仍屬於原始 service namespace 的宣告，而不是 live namespace 中的型別識別。Source model 可用於診斷與清單，但不能取代變更後的宣告或 artifact 輸入。Adapter 必須提供真正的 live 型別；Context 會被拒絕。
+
 ### `unknown-service`
 
 `service` 選項沒有精確匹配完整 service namespace 名稱。訊息會列出可用名稱。請使用包含父 namespace 且大小寫一致的名稱，不要使用 title 或簡稱。不會寫出任何文件。

@@ -8,6 +8,14 @@ Every warning and error the emitter can report, with what causes it and how to f
 
 ## Errors
 
+### `incomplete-effective-document`
+
+An adapter supplied a changed service graph without a complete live declaration boundary. Namespace maps do not contain every retained alias-only message, channel, or action instance, so automatic discovery could silently lose a contract. The adapter must include all retained live instances and deliberately omit removed ones. The context is refused instead of emitting a partial document.
+
+### `stale-effective-declaration`
+
+A changed service graph contains a declaration still owned by the selected original service namespace, rather than its live namespace identity. Source models are useful for diagnostics and inventories, but cannot replace mutated declaration or artifact inputs. The adapter must supply the real live identities; the context is refused.
+
 ### `unknown-service`
 
 The `service` option does not match an exact fully qualified service namespace. The diagnostic lists available names. Use the namespace name, including parent namespaces and original case, rather than a title or short name. No output is written.

@@ -24,6 +24,7 @@ export { resolveService } from "./resolve/service.js";
 export type { DocumentDeclarations } from "./resolve/document-declarations.js";
 export { getMessageState } from "./decorators/messages/message.js";
 export { getOperationMessageModels } from "./resolve/operation-models.js";
+export { listOperationActionTargets } from "./decorators/operations/action.js";
 export { getSecuritySchemeNames } from "./decorators/security/scheme-state.js";
 export { serviceOwner } from "./service-ownership.js";
 export type { ChannelTarget, MessageState } from "./decorators/index.js";

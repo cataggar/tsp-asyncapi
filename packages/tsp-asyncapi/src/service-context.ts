@@ -24,6 +24,7 @@ import {
   getMessageState,
   getOperationMessageModels,
   getSecuritySchemeNames,
+  listOperationActionTargets,
   serviceOwner,
   type DocumentDeclarations,
 } from "tsp-asyncapi-core/unstable";
@@ -33,11 +34,7 @@ import {
   type DocumentContext,
   type EffectiveDocumentGraph,
 } from "./document-context.js";
-
-function globalRoot(namespace: Namespace): Namespace {
-  while (namespace.namespace !== undefined) namespace = namespace.namespace;
-  return namespace;
-}
+import { resolveDiscriminator } from "./lower/schemas/inheritance.js";
 
 function channelOf(operation: Operation) {
   return operation.interface ?? operation.namespace;
@@ -49,7 +46,7 @@ function isOnChannel(program: Program, operation: Operation): boolean {
 }
 
 function sourceCarriers(program: Program, operations: readonly Operation[]) {
-  const carried = new Set<Operation["node"]>();
+  const carried = new Set<Operation>();
   for (const operation of operations) {
     if (
       serviceOwner(program, operation) === undefined ||
@@ -57,15 +54,22 @@ function sourceCarriers(program: Program, operations: readonly Operation[]) {
       getOperationAction(program, operation) === undefined
     )
       continue;
-    const seen = new Set<Operation>();
-    let source: Operation | undefined = operation;
-    while (source !== undefined && !seen.has(source)) {
-      seen.add(source);
-      if (source.node !== undefined) carried.add(source.node);
-      source = source.sourceOperation;
-    }
+    collectOperationSources(operation, carried);
   }
   return carried;
+}
+
+function collectOperationSources(operation: Operation, carried: Set<Operation>): void {
+  const pending = [operation];
+  for (const source of pending) {
+    if (carried.has(source)) continue;
+    carried.add(source);
+    if (source.sourceOperation !== undefined) pending.push(source.sourceOperation);
+    for (const base of source.interface?.sourceInterfaces ?? []) {
+      const inherited = base.operations.get(source.name);
+      if (inherited !== undefined && inherited.node === source.node) pending.push(inherited);
+    }
+  }
 }
 
 /** Validate original application roots once, even when a selector excludes some services. @internal */
@@ -86,7 +90,7 @@ export function validateServiceOwnership(program: Program, services: readonly Se
     if (
       serviceOwner(program, operation) !== undefined ||
       getOperationAction(program, operation) === undefined ||
-      (operation.node !== undefined && carried.has(operation.node))
+      carried.has(operation)
     )
       continue;
     if (isOnChannel(program, operation)) continue;
@@ -104,22 +108,28 @@ function originalDeclarations(program: Program): DocumentDeclarations {
   const channels = new Set(declarations.channels);
   const operations = new Set(declarations.operations);
   const diagnosticTargets = new Set(declarations.diagnosticTargets);
+  const addOperation = (operation: Operation): void => {
+    if (!operation.isFinished) return;
+    operations.add(operation);
+    diagnosticTargets.add(operation);
+  };
   // Aliases erase otherwise unused template instantiations from namespace maps.
   // Supplement only the original graph; realm discovery must never use state lists.
   const namespaces = new Set(declarations.namespaces);
   for (const model of listMessages(program).keys()) {
     if (model.namespace === undefined || namespaces.has(model.namespace)) models.add(model);
   }
+  for (const operation of listOperationActionTargets(program)) {
+    const namespace = operation.interface?.namespace ?? operation.namespace;
+    if (namespace !== undefined && !namespaces.has(namespace)) continue;
+    addOperation(operation);
+  }
   for (const channel of listChannels(program).keys()) {
     const namespace = channel.kind === "Namespace" ? channel : channel.namespace;
     if (namespace !== undefined && !namespaces.has(namespace)) continue;
     channels.add(channel);
     diagnosticTargets.add(channel);
-    for (const operation of channel.operations.values()) {
-      if (!operation.isFinished) continue;
-      operations.add(operation);
-      diagnosticTargets.add(operation);
-    }
+    for (const operation of channel.operations.values()) addOperation(operation);
   }
   return {
     ...declarations,
@@ -132,6 +142,18 @@ function originalDeclarations(program: Program): DocumentDeclarations {
 
 type Owns = (type: Type) => boolean;
 type CheckContract = (type: Type, target: Type) => boolean;
+
+function discriminatorSubtypes(program: Program, model: Model): readonly Model[] {
+  if (resolveDiscriminator(program, model).kind !== "applies") return [];
+  const descendants = new Set<Model>();
+  const pending = [...model.derivedModels];
+  for (const subtype of pending) {
+    if (descendants.has(subtype)) continue;
+    descendants.add(subtype);
+    pending.push(...subtype.derivedModels);
+  }
+  return [...descendants];
+}
 
 function contractChecker(
   program: Program,
@@ -198,6 +220,7 @@ function checkMessageReferences(
           }
           const headers = getHeadersModel(program, model);
           if (headers !== undefined) queue.push(headers);
+          queue.push(...discriminatorSubtypes(program, model));
           return undefined;
         },
         operation: () => ListenerFlow.NoRecursion,
@@ -232,10 +255,35 @@ function visibleSecuritySchemes(
   return securitySchemes;
 }
 
+function hasStaleDeclarations(
+  program: Program,
+  service: Service | undefined,
+  effective: EffectiveDocumentGraph,
+  declarations: DocumentDeclarations,
+): boolean {
+  if (service === undefined || service.type === effective.root) return false;
+  const types = [
+    ...declarations.models,
+    ...declarations.channels,
+    ...declarations.operations,
+    ...declarations.namespaces,
+  ];
+  const stale = types.find((type) => serviceOwner(program, type) === service.type);
+  if (stale === undefined) return false;
+  reportDiagnostic(program, {
+    code: "stale-effective-declaration",
+    target: stale,
+    format: { service: getNamespaceFullName(service.type), name: getTypeName(stale) },
+  });
+  return true;
+}
+
 /**
  * Apply service ownership to a live graph without modifying it. The full original
  * service list controls compatibility; a version adapter may supply an effective
  * namespace/service/realm on the same original Program.
+ * A changed graph must provide a complete live declaration boundary. Undefined
+ * reports a refused boundary; callers must withhold the complete output set.
  *
  * @internal
  */
@@ -244,14 +292,35 @@ export function createServiceDocumentContext(
   originalService: Service | undefined,
   originalServices: readonly Service[],
   effective?: EffectiveDocumentGraph,
-): DocumentContext {
-  if (originalService === undefined) return createDocumentContext(program, undefined, effective);
+): DocumentContext | undefined {
+  const originalRoot = originalService?.type ?? program.getGlobalNamespaceType();
+  if (
+    effective !== undefined &&
+    effective.declarations === undefined &&
+    (effective.root !== originalRoot || effective.realm !== undefined)
+  ) {
+    reportDiagnostic(program, {
+      code: "incomplete-effective-document",
+      target: originalRoot,
+      format: { service: getNamespaceFullName(originalRoot) || "(global)" },
+    });
+    return undefined;
+  }
+  if (
+    effective?.declarations !== undefined &&
+    hasStaleDeclarations(program, originalService, effective, effective.declarations)
+  )
+    return undefined;
+  if (originalService === undefined) {
+    return createDocumentContext(
+      program,
+      undefined,
+      effective?.declarations === undefined ? undefined : effective,
+    );
+  }
   const root = effective?.root ?? originalService.type;
   const service = effective === undefined ? originalService : effective.service;
-  const all =
-    effective === undefined
-      ? originalDeclarations(program)
-      : (effective.declarations ?? discoverDocumentDeclarations(globalRoot(root)));
+  const all = effective?.declarations ?? originalDeclarations(program);
   const owns: Owns = (type) => {
     const owner = serviceOwner(program, type);
     return owner === root || (owner === undefined && originalServices.length === 1);

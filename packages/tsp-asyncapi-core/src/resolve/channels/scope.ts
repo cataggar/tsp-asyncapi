@@ -33,9 +33,11 @@ export function channelOperations(
   operations?: ReadonlySet<Operation>,
 ): Operation[] {
   const compare = bySourcePosition(program);
-  return [...target.operations.values()]
-    .filter((operation) => operations === undefined || operations.has(operation))
-    .sort((a, b) => compare(sourcePositionOf(a), sourcePositionOf(b)));
+  const candidates =
+    operations === undefined
+      ? [...target.operations.values()]
+      : [...operations].filter((operation) => owningChannelTarget(operation) === target);
+  return candidates.sort((a, b) => compare(sourcePositionOf(a), sourcePositionOf(b)));
 }
 
 /**

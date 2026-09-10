@@ -5,6 +5,7 @@ import { expectDiagnosticEmpty } from "@typespec/compiler/testing";
 import { getSecuritySchemes } from "tsp-asyncapi-core";
 import { AsyncAPITester } from "#emitter/testing.js";
 import { createServiceDocumentContext } from "#emitter/service-context.js";
+import { discoverDocumentDeclarations } from "#emitter/document-context.js";
 import { planDocumentOutputs } from "#emitter/document-output.js";
 import { buildDocumentFromContext } from "#emitter/pipeline.js";
 import { referencesIn } from "../../utils/references.js";
@@ -54,8 +55,10 @@ describe("Unit: effective service contexts", () => {
         const document = createServiceDocumentContext(program, service, services, {
           root: graph.type,
           service: getService(program, graph.type),
+          declarations: discoverDocumentDeclarations(graph.type),
           ...(graph.realm === null ? {} : { realm: graph.realm }),
         });
+        if (document === undefined) throw new Error("Expected a complete live context.");
         return {
           document,
           version,
@@ -109,6 +112,7 @@ describe("Unit: effective service contexts", () => {
     `);
     const services = listServices(program);
     const context = createServiceDocumentContext(program, services[0], services);
+    if (context === undefined) throw new Error("Expected an original context.");
     expectDiagnosticEmpty(program.diagnostics);
     for (const count of [1, 2]) {
       await buildDocumentFromContext(context, {});

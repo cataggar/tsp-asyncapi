@@ -48,6 +48,18 @@ export const PACKAGE_NAME = "tsp-asyncapi-core";
 export const $lib = createTypeSpecLibrary({
   name: LIBRARY_NAME,
   diagnostics: {
+    "incomplete-effective-document": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Effective document '${"service"}' requires complete live declarations, including retained alias-only message, channel, and action instances. Namespace maps alone cannot prove completeness. Supply the adapter's complete declarations and omit deliberately removed instances.`,
+      },
+    },
+    "stale-effective-declaration": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Effective document '${"service"}' includes original declaration '${"name"}' instead of its live graph identity. Original/source models may be used for diagnostics, not as effective declaration or artifact inputs.`,
+      },
+    },
     "unknown-service": {
       severity: "error",
       messages: {

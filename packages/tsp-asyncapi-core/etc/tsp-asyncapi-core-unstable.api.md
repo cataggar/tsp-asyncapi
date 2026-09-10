@@ -163,6 +163,11 @@ export function isProtobufMap(program: Program, type: Type): boolean;
 // @internal
 export function isProtobufMessage(program: Program, model: Model): boolean;
 
+// Warning: (ae-internal-missing-underscore) The name "listOperationActionTargets" should be prefixed with an underscore because the declaration is marked as @internal
+//
+// @internal
+export function listOperationActionTargets(program: Program): readonly Operation[];
+
 // Warning: (ae-internal-missing-underscore) The name "listProtobufMessageModels" should be prefixed with an underscore because the declaration is marked as @internal
 //
 // @internal
