@@ -259,6 +259,9 @@ importers:
       '@typespec/protobuf':
         specifier: 0.86.0
         version: 0.86.0(@typespec/compiler@1.16.0(@types/node@26.3.0))
+      '@typespec/versioning':
+        specifier: 0.86.0
+        version: 0.86.0(@typespec/compiler@1.16.0(@types/node@26.3.0))
       '@vitest/coverage-v8':
         specifier: ^4.1.10
         version: 4.1.11(vitest@4.1.11)
@@ -328,6 +331,9 @@ importers:
 
   packages/tsp-asyncapi:
     dependencies:
+      '@typespec/versioning':
+        specifier: 0.86.0
+        version: 0.86.0(@typespec/compiler@1.16.0(@types/node@26.3.0))
       tsp-asyncapi-core:
         specifier: workspace:~
         version: link:../tsp-asyncapi-core

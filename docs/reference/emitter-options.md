@@ -12,6 +12,7 @@ Set these in `tspconfig.yaml`, or pass them on the CLI with `--option "tsp-async
 | `file-type`            | `"yaml" \| "json"` | `yaml`                                                      | Serialization format of the document.                                                                       |
 | `output-file`          | `string`           | `asyncapi.{service-name-if-multiple}.{version}.{file-type}` | Filename or template, written under `tsp-output/tsp-asyncapi/`.                                             |
 | `service`              | `string`           | (all declared services)                                     | Select one exact fully qualified service namespace, such as `Company.Orders`.                               |
+| `version`              | `string`           | (all declared root versions)                                | Select one exact version enum value for one selected versioned service.                                     |
 | `asyncapi-id`          | `string`           | (omitted)                                                   | Emitted as the document's top-level `id` field — the application's global identifier, conventionally a URN. |
 | `default-content-type` | `string`           | (omitted)                                                   | Emitted as `defaultContentType` — the content type message payloads use when a message declares none.       |
 | `preview-features`     | `string[]`         | `[]`                                                        | Turns on preview features. The reserved names are `protobuf` and `avro`.                                    |
@@ -47,12 +48,12 @@ By default, every namespace marked `@service` produces its own AsyncAPI document
 
 `service` matches the namespace's exact, case-sensitive fully qualified name, not its title or short name. An unknown or ambiguous selector is an error. Selecting `Company.Orders` from a program with several services still writes `asyncapi.Company.Orders.yaml`; filtering never changes the original service count used for naming.
 
-| Token                        | Value                                                                                                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `{service-name}`             | Original fully qualified service namespace; omitted for the no-service fallback.                                                                         |
-| `{service-name-if-multiple}` | The same name, only when the original program declares more than one service.                                                                            |
-| `{version}`                  | Optional version identity supplied by a version-aware adapter; omitted for unversioned documents. This option alone does not enable TypeSpec versioning. |
-| `{file-type}`                | `yaml` or `json`.                                                                                                                                        |
+| Token                        | Value                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------- |
+| `{service-name}`             | Original fully qualified service namespace; omitted for the no-service fallback.        |
+| `{service-name-if-multiple}` | The same name, only when the original program declares more than one service.           |
+| `{version}`                  | Selected root version enum value; omitted for unversioned and dependency-only services. |
+| `{file-type}`                | `yaml` or `json`.                                                                       |
 
 An omitted token also removes its following `.` or `/`. Thus the default remains `asyncapi.yaml` or `asyncapi.json` with zero or one unversioned service. A template such as `{service-name}/asyncapi.{file-type}` creates a service subdirectory. Service/version values are escaped as portable path segments: UTF-8 percent encoding preserves punctuation and Unicode without allowing path separators, reserved device names, or trailing dots to change the destination.
 
@@ -66,9 +67,24 @@ Owned `@message` models are retained even when unused. A messaging signature may
 
 With one original service, otherwise unowned declarations keep their legacy implicit ownership. With no services, the legacy global fallback document remains. With multiple original services, unowned channels and actions are ambiguous, even if `service` selects just one app. Move application declarations beneath their owner. Unowned inherited/template operation signatures that are realized on an owned channel are reusable carriers, not additional application roots.
 
-The emitter resolves all selected documents before writing any of them. New selection/ownership errors, output collisions, ambiguous visible security definitions, and provider refusals withhold the whole output set. Existing resolve/lower diagnostic-and-drop behavior remains unchanged. `noEmit` suppresses writes, not diagnostics. Source validation still applies to the entire TypeSpec program; selecting a service does not hide source errors in another service.
+The emitter resolves all selected documents before writing any of them. Selection/ownership errors, output collisions, ambiguous visible security definitions, and provider refusals withhold the whole output set. Existing resolve/lower diagnostic-and-drop recovery remains for unversioned documents; errors in a versioned or dependency-only view withhold the entire output set. Compiler 1.16 skips emitter execution with `noEmit`, so emitter-specific view validation requires an emission pass. Source validation still applies to the entire TypeSpec program; selecting a service does not hide source errors in another service.
 
 Changed-graph adapters must supply a complete live declaration boundary, including retained alias-only messages, channels, and actions. Namespace-map discovery alone cannot prove that boundary complete. Missing or stale inputs report `incomplete-effective-document` or `stale-effective-declaration` and refuse the context. Original/source models are diagnostics or inventory inputs, not substitutes for live declarations or artifacts. An explicitly identical original graph retains the ordinary alias behavior.
+
+## Version selection
+
+`version` optionally selects one exact root version enum **value**, not a member
+name or an `@info.version`. Omit it to emit all declared root versions. Selection
+requires one unambiguous selected versioned service; combine it with `service`
+when the original program has multiple services.
+
+Root-version documents use the selected value for `info.version`, warning about
+conflicting authored metadata. Unversioned and dependency-only services retain
+their own metadata. Filenames always retain the version token for versioned roots,
+even when selecting just one version.
+
+See [Versioned contracts](../guide/versioning) for the supported compiler 1.16 /
+versioning 0.86 integration, aliases, dependency choices, and explicit limitations.
 
 ## Preview features
 

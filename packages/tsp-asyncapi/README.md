@@ -102,6 +102,15 @@ The [reference][options] describes each one.
 | `default-content-type` | `string`   | none            | Maps to `defaultContentType`   |
 | `preview-features`     | `string[]` | `[]`            | Turns on `protobuf` or `avro`  |
 
+## Versioning
+
+Requires Node.js 22 or newer. With compiler 1.16.0 and versioning 0.86.0, each
+declared root version gets its own contract and resolved dependency versions.
+The optional `version` emitter option selects an exact enum value. It is not
+`@info.version`, which never selects schemas. Output filenames retain version
+suffixes and collisions prevent all writes.
+See the [versioning guide](https://tsp-asyncapi.marvinhsu.dev/guide/versioning).
+
 ## More
 
 - [Documentation](https://tsp-asyncapi.marvinhsu.dev/)

@@ -236,6 +236,15 @@ Set these in `tspconfig.yaml`, or pass them as CLI arguments:
 | `default-content-type` | `string`   | -               | Default content type for message payloads. Maps to `defaultContentType`. |
 | `preview-features`     | `string[]` | `[]`            | Turns on preview features. The reserved names are `protobuf` and `avro`. |
 
+## Versioned contracts
+
+With compiler 1.16.0 and `@typespec/versioning` 0.86.0, each root version is
+emitted with its resolved dependency choices. Combine the `service` selector
+with the optional exact enum-value `version` selector. `@info.version` is
+metadata, not a schema selector. Versioned aliases and schemas are resolved
+before service ownership, and shared filename preflight prevents overwrites.
+See [Versioned contracts](docs/guide/versioning.md).
+
 ## Preview features
 
 > **Warning:** Anything a preview feature emits can change in a future release.

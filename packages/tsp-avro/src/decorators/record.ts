@@ -9,6 +9,7 @@
 
 import { DecoratorContext, Model, Program } from "@typespec/compiler";
 import { useStateSet } from "@typespec/compiler/utils";
+import { isSourceType } from "../compiler-views.js";
 
 const recordStateKey = Symbol.for("tsp-avro.record");
 
@@ -64,5 +65,7 @@ export function isRecord(program: Program, target: Model): boolean {
  * @public
  */
 export function listRecords(program: Program): Model[] {
-  return [...(program.stateSet(recordStateKey) as Set<Model>)];
+  // Another emitter can replay decorators on versioned clones. Those marks
+  // are not declarations in this emitter's original program graph.
+  return [...(program.stateSet(recordStateKey) as Set<Model>)].filter(isSourceType);
 }

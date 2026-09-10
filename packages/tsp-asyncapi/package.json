@@ -50,6 +50,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@typespec/versioning": "0.86.0",
     "tsp-asyncapi-core": "workspace:~",
     "yaml": "^2.9.0"
   },
