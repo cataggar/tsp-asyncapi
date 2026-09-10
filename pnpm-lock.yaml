@@ -246,6 +246,15 @@ importers:
       '@typespec/compiler':
         specifier: ^1.15.0
         version: 1.15.0(@types/node@26.3.0)
+      '@typespec/http':
+        specifier: 1.15.0
+        version: 1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))
+      '@typespec/openapi':
+        specifier: 1.15.0
+        version: 1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0)))
+      '@typespec/openapi3':
+        specifier: 1.15.0
+        version: 1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0)))(@typespec/openapi@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))))
       '@typespec/protobuf':
         specifier: 0.85.0
         version: 0.85.0(@typespec/compiler@1.15.0(@types/node@26.3.0))
@@ -1764,6 +1773,34 @@ packages:
     resolution: {integrity: sha512-+jNbxhh8CkrZYxMk9X3GRYM2+Myr1xCCj+eHbJ9Vp+PCdNHS0TUl5QQFT6UbM/aTFRCzs5jiBTKYzBRpe5uYbQ==}
     engines: {node: '>=20.9.0'}
 
+  '@scalar/helpers@0.10.0':
+    resolution: {integrity: sha512-IAfnpIZnXY6ni+zyFMwWHBa5b/7yr4mCSvoTGR84oS9q4Quy2wjgafnr7CyfL65ney3iilBZHigZYLYqdqCu3Q==}
+    engines: {node: '>=22'}
+
+  '@scalar/helpers@0.11.1':
+    resolution: {integrity: sha512-Knwbe0IYqFk0PPDoOKLasqglBHfyf9/zwWWqFsSNi/AtdjM29wSZXN6p8DFid6iB5B9epYH9YiSgJ6tpD00TEw==}
+    engines: {node: '>=22'}
+
+  '@scalar/json-magic@0.12.20':
+    resolution: {integrity: sha512-5JawJ1L3+ddDoKefkXsklKs6CmmTIcPDmkJPpAkbRi9QQiU9MUONQ4VSi2z3ij+8Ka4neNhsXBNG4itPjurBLg==}
+    engines: {node: '>=22'}
+
+  '@scalar/json-magic@0.13.2':
+    resolution: {integrity: sha512-T8rQw5u7+MSTDpUcd5ShX1taOUxpZMv2b/P6xsahdlv/u68VX/Bq/+uzuAf2xW8IIOy7BEP4MBggle/vMDgAXw==}
+    engines: {node: '>=22'}
+
+  '@scalar/openapi-parser@0.28.16':
+    resolution: {integrity: sha512-zHEQExXo58Nk7/Tju4y4HLVJ+B5nnDmR7vPhhHLVinL0z99aGrd6S/8HREupVpfAsim326pfzIbSM+UOvEbnOw==}
+    engines: {node: '>=22'}
+
+  '@scalar/openapi-types@0.9.5':
+    resolution: {integrity: sha512-czrz/zkVm1oPzrpYo3hI/iymfiw1s4dgJiQtwNi2U77Sqf3EQOGKsif4VNRa5suWMYRuPaFx5EiFM1FNEV4Whg==}
+    engines: {node: '>=22'}
+
+  '@scalar/openapi-upgrader@0.2.15':
+    resolution: {integrity: sha512-yqROK9U96ElasEL4Wl/+PIjQZlqrQXVUUpXk9PA6xBnrp8KdEv7at8pR5gsZkvddJfYVwLILPlctyqUg4u4YZA==}
+    engines: {node: '>=22'}
+
   '@scarf/scarf@1.4.0':
     resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
 
@@ -2018,10 +2055,61 @@ packages:
     resolution: {integrity: sha512-YR65gGdGvTUAWLldC3xLOvOzamdGzB4A5/N8rehEaHs3Zvoe39BhgY+u0SPch1OvrVTfLcc55wsSgK2NcnTS/A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@typespec/asset-emitter@0.79.1':
+    resolution: {integrity: sha512-53s3GLu5BwNkl7Itr/OizfhymTV2u7k5/cwjUOAt03AUDfiKlwbsp+iCIsq1vccJuoDOiXOceJOfL8rAf4/9LQ==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@typespec/compiler': ^1.10.0
+
   '@typespec/compiler@1.15.0':
     resolution: {integrity: sha512-NbCIRAIzyozchlSaGPVuyV43bC+y+OpXYCuT+8M8kt35Ln9zWzLFcIt7irofQ5QUXBZrHsBFpI5fTOFdCGeWCA==}
     engines: {node: '>=22.0.0'}
     hasBin: true
+
+  '@typespec/http@1.15.0':
+    resolution: {integrity: sha512-LNyzYHyX3C0xyQQ262jhvIaVzTn7DqiDB2gz45w1m6ngJH9ArGU8XjO3o7PaZkl/nuB5MTpImnsXpHIV1rbi4Q==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@typespec/compiler': ^1.15.0
+      '@typespec/streams': ^0.85.0
+    peerDependenciesMeta:
+      '@typespec/streams':
+        optional: true
+
+  '@typespec/openapi3@1.15.0':
+    resolution: {integrity: sha512-Gc6OjBiAtPo3ohlkrDxQKt8+xdeR54tC+Cgu3YLlxUxrWHWYOfWQXzp4NX+sraiFjF6kX7t0G1A1kY7rgy73qw==}
+    engines: {node: '>=22.0.0'}
+    hasBin: true
+    peerDependencies:
+      '@typespec/compiler': ^1.15.0
+      '@typespec/events': ^0.85.0
+      '@typespec/http': ^1.15.0
+      '@typespec/json-schema': ^1.15.0
+      '@typespec/openapi': ^1.15.0
+      '@typespec/sse': ^0.85.0
+      '@typespec/streams': ^0.85.0
+      '@typespec/versioning': ^0.85.0
+      '@typespec/xml': '*'
+    peerDependenciesMeta:
+      '@typespec/events':
+        optional: true
+      '@typespec/json-schema':
+        optional: true
+      '@typespec/sse':
+        optional: true
+      '@typespec/streams':
+        optional: true
+      '@typespec/versioning':
+        optional: true
+      '@typespec/xml':
+        optional: true
+
+  '@typespec/openapi@1.15.0':
+    resolution: {integrity: sha512-lHd3H5W23KOIGKyBPKpBLPHVOxcxuvqOBXGqlyPvGmHDgmD74mrUtHWxNoGx+QQESjx4tS8Tu6URNQBU6y6Q1Q==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@typespec/compiler': ^1.15.0
+      '@typespec/http': ^1.15.0
 
   '@typespec/protobuf@0.85.0':
     resolution: {integrity: sha512-b/uH5wjiWwAFNsO04kk9uUqJoDltCwjOstPrEcPjo3ZQITERX112IqUQIS00oVVvQhJ/sHixD0WmKznwwtL2qQ==}
@@ -3203,6 +3291,10 @@ packages:
   leven@3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
     engines: {node: '>=6'}
+
+  leven@4.1.0:
+    resolution: {integrity: sha512-KZ9W9nWDT7rF7Dazg8xyLHGLrmpgq2nVNFUckhqdW3szVP6YhCpp/RAnpmVExA9JvrMynjwSLVrEj3AepHR6ew==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -5654,6 +5746,41 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
+  '@scalar/helpers@0.10.0': {}
+
+  '@scalar/helpers@0.11.1': {}
+
+  '@scalar/json-magic@0.12.20':
+    dependencies:
+      '@scalar/helpers': 0.10.0
+      pathe: 2.0.3
+      yaml: 2.9.0
+
+  '@scalar/json-magic@0.13.2':
+    dependencies:
+      '@scalar/helpers': 0.11.1
+      pathe: 2.0.3
+      yaml: 2.9.0
+
+  '@scalar/openapi-parser@0.28.16':
+    dependencies:
+      '@scalar/helpers': 0.11.1
+      '@scalar/json-magic': 0.13.2
+      '@scalar/openapi-types': 0.9.5
+      '@scalar/openapi-upgrader': 0.2.15
+      ajv: 8.20.0
+      ajv-draft-04: 1.0.0(ajv@8.20.0)
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      jsonpointer: 5.0.1
+      leven: 4.1.0
+      yaml: 2.9.0
+
+  '@scalar/openapi-types@0.9.5': {}
+
+  '@scalar/openapi-upgrader@0.2.15':
+    dependencies:
+      '@scalar/openapi-types': 0.9.5
+
   '@scarf/scarf@1.4.0': {}
 
   '@sec-ant/readable-stream@0.4.1': {}
@@ -6068,6 +6195,10 @@ snapshots:
       '@typescript-eslint/types': 8.68.0
       eslint-visitor-keys: 5.0.1
 
+  '@typespec/asset-emitter@0.79.1(@typespec/compiler@1.15.0(@types/node@26.3.0))':
+    dependencies:
+      '@typespec/compiler': 1.15.0(@types/node@26.3.0)
+
   '@typespec/compiler@1.15.0(@types/node@26.3.0)':
     dependencies:
       '@babel/code-frame': 7.29.7
@@ -6088,6 +6219,26 @@ snapshots:
       yargs: 18.1.0
     transitivePeerDependencies:
       - '@types/node'
+
+  '@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))':
+    dependencies:
+      '@typespec/compiler': 1.15.0(@types/node@26.3.0)
+
+  '@typespec/openapi3@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0)))(@typespec/openapi@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))))':
+    dependencies:
+      '@scalar/json-magic': 0.12.20
+      '@scalar/openapi-parser': 0.28.16
+      '@scalar/openapi-types': 0.9.5
+      '@typespec/asset-emitter': 0.79.1(@typespec/compiler@1.15.0(@types/node@26.3.0))
+      '@typespec/compiler': 1.15.0(@types/node@26.3.0)
+      '@typespec/http': 1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))
+      '@typespec/openapi': 1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0)))
+      yaml: 2.9.0
+
+  '@typespec/openapi@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))(@typespec/http@1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0)))':
+    dependencies:
+      '@typespec/compiler': 1.15.0(@types/node@26.3.0)
+      '@typespec/http': 1.15.0(@typespec/compiler@1.15.0(@types/node@26.3.0))
 
   '@typespec/protobuf@0.85.0(@typespec/compiler@1.15.0(@types/node@26.3.0))':
     dependencies:
@@ -7382,6 +7533,8 @@ snapshots:
       shell-quote: 1.10.0
 
   leven@3.1.0: {}
+
+  leven@4.1.0: {}
 
   levn@0.4.1:
     dependencies:
