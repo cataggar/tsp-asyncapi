@@ -1,7 +1,8 @@
 import { EmitContext, emitFile, resolvePath, listServices, Service } from "@typespec/compiler";
 import { reportDiagnostic } from "tsp-asyncapi-core";
 import type { AsyncAPIEmitterOptions } from "./emitter-options.js";
-import { buildAsyncAPIDocument } from "./pipeline.js";
+import { buildDocumentFromContext } from "./pipeline.js";
+import { createDocumentContext } from "./document-context.js";
 import { reportUnavailablePreviewFeatures } from "./preview-features.js";
 import {
   availableFeatures,
@@ -23,15 +24,6 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
 
   const providers = shippedProviders();
 
-  // Every provider a preview feature turns on runs here, before resolve. What
-  // it produces is an input to resolve, so it has to exist before resolve
-  // starts.
-  const collected = await collectSchemaArtifacts(
-    program,
-    new Set(options["preview-features"] ?? []),
-    providers,
-  );
-
   const services = listServices(program);
   let service: Service | undefined = undefined;
   if (services.length > 0) {
@@ -43,6 +35,14 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
       });
     }
   }
+
+  const document = createDocumentContext(program, service);
+  const collected = await collectSchemaArtifacts(
+    program,
+    new Set(options["preview-features"] ?? []),
+    providers,
+    document.artifactInput,
+  );
 
   // Two refusals leave from here. A requested feature with no provider behind
   // it is one. A conflict that removed both artifacts is the other, because
@@ -59,7 +59,7 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
   );
   if (unavailable || collected.refused) return;
 
-  const doc = await buildAsyncAPIDocument(program, service, options, collected.artifacts);
+  const doc = await buildDocumentFromContext(document, options, collected.artifacts);
 
   // Default serialization
   const fileType = options["file-type"] ?? "yaml";

@@ -8,6 +8,8 @@ import { resolveMessages } from "./messages.js";
 import { resolveOperations } from "./operations.js";
 import { resolveSecuritySchemes } from "./security-schemes.js";
 import { emptySchemaArtifacts, type SchemaArtifactIndex } from "../schema-artifacts.js";
+import { documentMessages, type DocumentDeclarations } from "./document-declarations.js";
+import type { OperationModelContext } from "./operation-models.js";
 import {
   reportSecurityUsesWithoutServer,
   reportServersOutsideService,
@@ -75,8 +77,8 @@ export interface AsyncAPIService {
    * whole, and it is the target the info node describes.
    *
    * It is absent when the program declares no `@service`. Such a program
-   * still emits a document: AsyncAPI requires `channels` and `operations`,
-   * and a channel is declared program-wide rather than under a service.
+   * still emits a document. Declarations come from the supplied live scope,
+   * or from the legacy whole-program discovery path when no scope is supplied.
    */
   readonly target?: Namespace;
   /** The document head, with every default already applied. */
@@ -645,8 +647,8 @@ export interface OperationReplyNode {
  * recorded
  * @param artifacts - The schemas another tool generated for this program.
  * A build that ran no provider passes none.
- * @returns The semantic model, or `undefined` when the program declares no
- * service
+ * @param declarations - Explicit live identities, or the legacy global path
+ * @returns The semantic model, including the global fallback when there is no service
  * @internal
  */
 export function resolveService(
@@ -654,8 +656,14 @@ export function resolveService(
   service: Service | undefined,
   placements: BindingPlacements,
   artifacts: SchemaArtifactIndex = emptySchemaArtifacts,
+  declarations?: DocumentDeclarations,
 ): AsyncAPIService {
-  const securitySchemes = resolveSecuritySchemes(program);
+  const modelContext: OperationModelContext = {
+    operations: declarations === undefined ? undefined : new Set(declarations.operations),
+    reportedUnsupportedMessageTypes: new Set(),
+  };
+  const declaredMessages = documentMessages(program, declarations);
+  const securitySchemes = resolveSecuritySchemes(program, declarations?.namespaces);
   const declaredSchemes = new Set(securitySchemes.map((scheme) => scheme.name));
   // The channels are resolved before the servers, and a channel writes a
   // reference to a server. So the names are read here, ahead of both.
@@ -665,17 +673,25 @@ export function resolveService(
     messages,
     keys,
     extensionCarriers: messageCarriers,
-  } = resolveMessages(program, placements, artifacts);
+  } = resolveMessages(program, placements, artifacts, declaredMessages);
   const {
     channels,
     emitted,
     extensionCarriers: channelCarriers,
-  } = resolveChannels(program, keys, placements, declaredServers);
+  } = resolveChannels(
+    program,
+    keys,
+    placements,
+    declaredServers,
+    declarations,
+    modelContext,
+    declaredMessages,
+  );
 
   // A server on any namespace other than the service's never reaches the
   // document, and a `@useSecurity` beside it has just as little to attach to.
-  reportServersOutsideService(program, service?.type);
-  reportSecurityUsesWithoutServer(program, service?.type);
+  reportServersOutsideService(program, service?.type, declarations?.diagnosticTargets);
+  reportSecurityUsesWithoutServer(program, service?.type, declarations?.diagnosticTargets);
 
   const servers =
     service !== undefined ? resolveServers(program, service.type, declaredSchemes, placements) : [];
@@ -685,13 +701,16 @@ export function resolveService(
     keys,
     declaredSchemes,
     placements,
+    declarations,
+    modelContext,
   );
 
-  reportUnattachedBindings(program, placements);
-  reportTagConflicts(program);
+  reportUnattachedBindings(program, placements, declarations?.diagnosticTargets);
+  reportTagConflicts(program, declarations?.diagnosticTargets);
   reportExtensionProblems(
     program,
     extensionCarriers(service, channelCarriers, messageCarriers, operationCarriers),
+    declarations?.diagnosticTargets,
   );
 
   return {

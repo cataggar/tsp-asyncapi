@@ -1,8 +1,8 @@
 /**
  * The tools that generate a schema, and the one index they produce together.
  *
- * A provider wraps another schema tool. It reads the whole program, runs that
- * tool, and reports which model each schema it produced belongs to. What it
+ * A provider wraps another schema tool. It reads the selected live models,
+ * runs that tool, and reports which model each schema it produced belongs to. What it
  * returns is plain data, so the tool it wraps stays inside this file's half of
  * the build: `tsp-asyncapi-core` receives the index and never the tool.
  *
@@ -17,6 +17,7 @@
 import type { Model, Program } from "@typespec/compiler";
 import {
   emptySchemaArtifacts,
+  listMessages,
   reportDiagnostic,
   type ExternalSchemaArtifact,
   type SchemaArtifactIndex,
@@ -40,12 +41,24 @@ export interface SchemaArtifactProvider {
   /** The preview feature this provider implements. */
   readonly id: PreviewFeature;
   /**
-   * Runs the tool over one program.
+   * Runs the tool for the selected models on the original program. Omitting
+   * the input retains whole-program discovery for existing internal callers.
    *
    * @returns Every schema the tool produced, and whether it had to refuse a
    * model it was asked about
    */
-  collect(program: Program): Promise<CollectedSchemaArtifacts>;
+  collect(program: Program, input?: SchemaArtifactInput): Promise<CollectedSchemaArtifacts>;
+}
+
+/**
+ * The effective message identities one document requests artifacts for.
+ * Providers must not rediscover models through a global decorator list.
+ *
+ * @internal
+ */
+export interface SchemaArtifactInput {
+  readonly program: Program;
+  readonly models: readonly Model[];
 }
 
 /**
@@ -107,6 +120,7 @@ export interface CollectedSchemaArtifacts {
  * @param program - The compiled program
  * @param features - The preview features the project turned on
  * @param providers - The registry to select from. A test passes its own.
+ * @param input - The document's effective message identities
  *
  * @internal
  */
@@ -114,11 +128,15 @@ export async function collectSchemaArtifacts(
   program: Program,
   features: ReadonlySet<PreviewFeature>,
   providers: readonly SchemaArtifactProvider[],
+  input: SchemaArtifactInput = { program, models: [...listMessages(program).keys()] },
 ): Promise<CollectedSchemaArtifacts> {
+  if (input.program !== program) {
+    throw new Error("Schema artifact input must use the document's original Program.");
+  }
   const enabled = providers.filter((provider) => features.has(provider.id));
   if (enabled.length === 0) return { artifacts: emptySchemaArtifacts, refused: false };
 
-  const collected = await Promise.all(enabled.map((provider) => provider.collect(program)));
+  const collected = await Promise.all(enabled.map((provider) => provider.collect(program, input)));
   const indexes = collected.map((one) => one.artifacts);
   const payload = mergePayloads(
     program,

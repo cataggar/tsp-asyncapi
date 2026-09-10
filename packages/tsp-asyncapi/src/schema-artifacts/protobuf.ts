@@ -1,7 +1,7 @@
 /**
  * The Protobuf provider, as the registry holds it.
  *
- * This file joins existing parts over a whole program. The state reader
+ * This file joins existing parts for the selected live models. The state reader
  * says which models the official decorators marked and which package each
  * belongs to. The walk builds one model's closure, and the printer renders
  * that closure as proto3 text. One model is one payload, carrying the
@@ -21,8 +21,12 @@ import type { Model, Program } from "@typespec/compiler";
 import { listMessages, type ExternalSchemaArtifact } from "tsp-asyncapi-core";
 import { buildPayloadModel } from "./protobuf/model.js";
 import { renderProtoFile } from "./protobuf/render.js";
-import { listProtobufMessageModels } from "tsp-asyncapi-core/unstable";
-import type { CollectedSchemaArtifacts, SchemaArtifactProvider } from "./provider.js";
+import { isProtobufMessage } from "tsp-asyncapi-core/unstable";
+import type {
+  CollectedSchemaArtifacts,
+  SchemaArtifactInput,
+  SchemaArtifactProvider,
+} from "./provider.js";
 
 /**
  * The AsyncAPI schema format of proto3 text.
@@ -46,8 +50,8 @@ const PROVIDER_ID = "protobuf";
 export function createProtobufProvider(): SchemaArtifactProvider {
   return {
     id: PROVIDER_ID,
-    collect(program: Program): Promise<CollectedSchemaArtifacts> {
-      return Promise.resolve(collectProtobufArtifacts(program));
+    collect(program: Program, input?: SchemaArtifactInput): Promise<CollectedSchemaArtifacts> {
+      return Promise.resolve(collectProtobufArtifacts(program, input));
     },
   };
 }
@@ -59,15 +63,18 @@ export function createProtobufProvider(): SchemaArtifactProvider {
  *
  * @param program - The compiled program
  */
-function collectProtobufArtifacts(program: Program): CollectedSchemaArtifacts {
-  const asked = listMessages(program);
+function collectProtobufArtifacts(
+  program: Program,
+  input?: SchemaArtifactInput,
+): CollectedSchemaArtifacts {
+  const asked = input?.models ?? [...listMessages(program).keys()];
   const payloadFor = new Map<Model, ExternalSchemaArtifact>();
 
   let refused = false;
-  for (const model of listProtobufMessageModels(program)) {
+  for (const model of asked) {
     // A model outside the document is skipped, not reported: a diagnostic
     // for it would name a message that does not exist.
-    if (!asked.has(model)) continue;
+    if (!isProtobufMessage(program, model)) continue;
 
     const payload = buildPayloadModel(program, model);
     if (payload === undefined) {

@@ -49,10 +49,12 @@ interface MergedTags {
  * @param program - The program to read the state from
  * @internal
  */
-export function reportTagConflicts(program: Program): void {
+export function reportTagConflicts(program: Program, scope?: ReadonlySet<Type>): void {
   const compare = bySourcePosition(program);
-  const targets = listAsyncTagTargets(program)
-    .map(([target]) => ({ target, key: sourcePositionOf(target) }))
+  const targets = (
+    scope === undefined ? listAsyncTagTargets(program).map(([target]) => target) : [...scope]
+  )
+    .map((target) => ({ target, key: sourcePositionOf(target) }))
     .sort((a, b) => compare(a.key, b.key));
 
   for (const { target } of targets) {

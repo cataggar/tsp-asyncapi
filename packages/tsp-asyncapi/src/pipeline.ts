@@ -23,6 +23,7 @@ import {
 } from "tsp-asyncapi-core/unstable";
 import { lowerDocument } from "./lower/document.js";
 import { AsyncAPIDocument } from "./types/index.js";
+import { createDocumentContext, type DocumentContext } from "./document-context.js";
 
 /**
  * Runs resolve and lower over one program.
@@ -43,15 +44,29 @@ import { AsyncAPIDocument } from "./types/index.js";
 // The body awaits nothing yet, but `async` keeps the signature honest: a
 // throw from either stage reaches the caller as a rejection, matching the
 // return type.
-// eslint-disable-next-line @typescript-eslint/require-await
 export async function buildAsyncAPIDocument(
   program: Program,
   service: Service | undefined,
   options: AsyncAPIEmitterOptions,
   artifacts: SchemaArtifactIndex = emptySchemaArtifacts,
 ): Promise<AsyncAPIDocument> {
+  return buildDocumentFromContext(createDocumentContext(program, service), options, artifacts);
+}
+
+/** Builds from one selected live graph, with fresh resolver and lower state. @internal */
+// eslint-disable-next-line @typescript-eslint/require-await
+export async function buildDocumentFromContext(
+  context: DocumentContext,
+  options: AsyncAPIEmitterOptions,
+  artifacts: SchemaArtifactIndex = emptySchemaArtifacts,
+): Promise<AsyncAPIDocument> {
   // One build owns one record of which binding applications it placed. It is
   // passed explicitly, so two builds of one program cannot see each other's.
   const placements = new BindingPlacements();
-  return lowerDocument(program, resolveService(program, service, placements, artifacts), options);
+  const { program, service, declarations } = context;
+  return lowerDocument(
+    program,
+    resolveService(program, service, placements, artifacts, declarations),
+    options,
+  );
 }

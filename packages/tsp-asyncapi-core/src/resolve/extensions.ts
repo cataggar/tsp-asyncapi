@@ -97,8 +97,12 @@ export function resolveExtensions(
  * @param emittedTargets - Every type whose extensions reached an object
  * @internal
  */
-export function reportExtensionProblems(program: Program, emittedTargets: ReadonlySet<Type>): void {
-  for (const [target, entries] of targetsInSourceOrder(program)) {
+export function reportExtensionProblems(
+  program: Program,
+  emittedTargets: ReadonlySet<Type>,
+  targets?: ReadonlySet<Type>,
+): void {
+  for (const [target, entries] of targetsInSourceOrder(program, targets)) {
     if (entries.length === 0) continue;
     if (!emittedTargets.has(target)) {
       reportDiagnostic(program, { code: "extension-target-not-emitted", target });
@@ -121,9 +125,16 @@ export function reportExtensionProblems(program: Program, emittedTargets: Readon
  *
  * @param program - The program to read the state from
  */
-function targetsInSourceOrder(program: Program): [Type, readonly ExtensionEntry[]][] {
+function targetsInSourceOrder(
+  program: Program,
+  targets?: ReadonlySet<Type>,
+): [Type, readonly ExtensionEntry[]][] {
   const compare = bySourcePosition(program);
-  return listExtensionTargets(program)
+  const entries: [Type, readonly ExtensionEntry[]][] =
+    targets === undefined
+      ? listExtensionTargets(program)
+      : [...targets].map((target) => [target, listExtensionEntries(program, target)]);
+  return entries
     .map(([target, entries]) => ({ target, entries, key: sourcePositionOf(target) }))
     .sort((a, b) => compare(a.key, b.key))
     .map(({ target, entries }) => [target, entries]);

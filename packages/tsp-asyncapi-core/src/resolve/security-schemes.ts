@@ -6,9 +6,13 @@
  * reached by name rather than by the namespace it sits on.
  */
 
-import { Program } from "@typespec/compiler";
+import { Namespace, Program } from "@typespec/compiler";
 import { getSecuritySchemes } from "../decorators/security/scheme.js";
-import { listSecuritySchemeRecords } from "../decorators/security/scheme-state.js";
+import {
+  getSecuritySchemesInternal,
+  listSecuritySchemeRecords,
+} from "../decorators/security/scheme-state.js";
+import { bySourcePosition } from "../source-order.js";
 import { SecuritySchemeNode } from "./service.js";
 
 /**
@@ -25,7 +29,20 @@ import { SecuritySchemeNode } from "./service.js";
  *
  * @internal
  */
-export function resolveSecuritySchemes(program: Program): readonly SecuritySchemeNode[] {
+export function resolveSecuritySchemes(
+  program: Program,
+  namespaces?: readonly Namespace[],
+): readonly SecuritySchemeNode[] {
+  if (namespaces !== undefined) {
+    return namespaces
+      .flatMap((namespace) => getSecuritySchemesInternal(program, namespace) ?? [])
+      .sort(bySourcePosition(program))
+      .map((record) => ({
+        target: record.nameTarget,
+        name: record.state.name,
+        scheme: record.state.scheme,
+      }));
+  }
   const states = getSecuritySchemes(program);
   const records = listSecuritySchemeRecords(program);
   // Both lists come from one sorted read, so index `i` names one scheme in

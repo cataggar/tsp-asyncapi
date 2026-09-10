@@ -12,7 +12,7 @@
  */
 
 import { Model, Program, getDoc, getSummary } from "@typespec/compiler";
-import { ChannelTarget, listChannelsInternal } from "../decorators/channels/state.js";
+import { ChannelTarget } from "../decorators/channels/state.js";
 import { listUseServerTargets } from "../decorators/channels/use-server-state.js";
 import { listMessages } from "../decorators/index.js";
 import { reportDiagnostic } from "../lib.js";
@@ -25,6 +25,8 @@ import { resolveChannelMessages } from "./channels/messages.js";
 import { resolveChannelParameters } from "./channels/parameters.js";
 import { resolveChannelServers } from "./channels/servers.js";
 import { ChannelNode } from "./service.js";
+import { documentChannels, type DocumentDeclarations } from "./document-declarations.js";
+import type { OperationModelContext } from "./operation-models.js";
 
 /**
  * One channel that reached the document.
@@ -86,6 +88,9 @@ export function resolveChannels(
   messageKeys: ReadonlyMap<Model, string>,
   placements: BindingPlacements,
   declaredServers: ReadonlySet<string>,
+  declarations?: DocumentDeclarations,
+  modelContext?: OperationModelContext,
+  declaredMessages: ReadonlyMap<Model, unknown> = listMessages(program),
 ): ResolvedChannels {
   const channels: ChannelNode[] = [];
   const claimedBy = new Set<string>();
@@ -99,9 +104,10 @@ export function resolveChannels(
   // the answer is the same for every channel. `listMessages` copies the whole
   // state map and sorts it by source position, so it is read once here rather
   // than once per channel.
-  const messageModels = new Set(listMessages(program).keys());
+  const messageModels = new Set(declaredMessages.keys());
+  const declared = documentChannels(program, declarations);
 
-  for (const { target, record } of listChannelsInternal(program)) {
+  for (const { target, record } of declared) {
     extensionCarriers.add(target);
     // The address doubles as the default key. With a broker such as Kafka,
     // the address is the topic name, and the topic name is what a reader
@@ -117,7 +123,7 @@ export function resolveChannels(
     }
     claimedBy.add(key);
 
-    const messages = resolveChannelMessages(program, target, key, messageKeys);
+    const messages = resolveChannelMessages(program, target, key, messageKeys, modelContext);
     channels.push({
       target,
       key,
@@ -125,7 +131,14 @@ export function resolveChannels(
       ...text("title", getSummary(program, target)),
       ...text("description", getDoc(program, target)),
       servers: resolveChannelServers(program, target, declaredServers),
-      parameters: resolveChannelParameters(program, target, record, key, messageModels),
+      parameters: resolveChannelParameters(
+        program,
+        target,
+        record,
+        key,
+        messageModels,
+        modelContext,
+      ),
       messages: messages.messages,
       messageKeys: messages.keys,
       tags: buildTags(program, target) ?? [],
@@ -136,7 +149,11 @@ export function resolveChannels(
     emitted.set(target, { id: key, address: record.state.address, messageKeys: messages.keys });
   }
 
-  reportUseServerWithoutChannel(program);
+  reportUseServerWithoutChannel(
+    program,
+    new Set(declared.map(({ target }) => target)),
+    declarations,
+  );
   reportDuplicateAddresses(program, channels);
 
   return { channels, emitted, extensionCarriers };
@@ -185,9 +202,13 @@ function reportDuplicateAddresses(program: Program, channels: readonly ChannelNo
  *
  * @param program - The program to read the state from
  */
-function reportUseServerWithoutChannel(program: Program): void {
-  const channels = new Set(listChannelsInternal(program).map(({ target }) => target));
+function reportUseServerWithoutChannel(
+  program: Program,
+  channels: ReadonlySet<ChannelTarget>,
+  declarations?: DocumentDeclarations,
+): void {
   for (const [target, recorded] of listUseServerTargets(program)) {
+    if (declarations !== undefined && !declarations.diagnosticTargets.has(target)) continue;
     if (channels.has(target)) continue;
     for (const entry of recorded) {
       reportDiagnostic(program, {

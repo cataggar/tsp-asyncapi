@@ -2,7 +2,7 @@ import { Model, Program } from "@typespec/compiler";
 import { ChannelMessageNode } from "../service.js";
 import { ChannelTarget } from "../../decorators/channels/state.js";
 import { reportDiagnostic } from "../../lib.js";
-import { channelMessageModels } from "../operation-models.js";
+import { channelMessageModels, type OperationModelContext } from "../operation-models.js";
 
 /**
  * What one channel contributes to the rest of the document.
@@ -47,12 +47,13 @@ export function resolveChannelMessages(
   target: ChannelTarget,
   channelId: string,
   messageKeys: ReadonlyMap<Model, string>,
+  modelContext?: OperationModelContext,
 ): ChannelMessages {
   const nodes: ChannelMessageNode[] = [];
   const claimed = new Set<string>();
   const keys = new Map<Model, string>();
 
-  for (const model of channelMessageModels(program, target)) {
+  for (const model of channelMessageModels(program, target, modelContext)) {
     const key = messageKeys.get(model);
     if (key === undefined || claimed.has(key)) continue;
     claimed.add(key);

@@ -10,7 +10,7 @@
 
 import { Model, Operation, Program, Type } from "@typespec/compiler";
 import { ChannelTarget } from "../decorators/channels/state.js";
-import { listMessages } from "../decorators/index.js";
+import { getMessageState } from "../decorators/messages/message.js";
 import { getOperationAction } from "../decorators/operations/action.js";
 import {
   getReplyChannelInternal,
@@ -22,14 +22,19 @@ import { bySourcePosition, sourcePositionOf } from "../source-order.js";
 import { channelOperations } from "../resolve/channels/scope.js";
 
 /**
- * The `Tuple` types already reported on one program.
+ * The fallback diagnostic ledger for standalone callers such as linter rules.
  *
- * One operation is walked from more than one caller. Without this set the
- * same tuple would be reported once per walk.
+ * Document builds pass their own fresh ledger instead of using Program state.
  */
 const reportedUnsupportedMessageTypes = Symbol.for(
   "tsp-asyncapi.unsupported-operation-message-type",
 );
+
+/** The operation selection and diagnostic ledger owned by one document build. */
+export interface OperationModelContext {
+  readonly operations: ReadonlySet<Operation> | undefined;
+  readonly reportedUnsupportedMessageTypes: Set<Type>;
+}
 
 /**
  * The models of one operation signature, split by side.
@@ -66,22 +71,22 @@ interface OperationSignatureModels {
 function operationSignatureModels(
   program: Program,
   operation: Operation,
+  context?: OperationModelContext,
 ): OperationSignatureModels {
-  const messages = listMessages(program);
   const parameters: Model[] = [];
   const seenParameters = new Set<Model>();
   for (const property of operation.parameters.properties.values()) {
     collectInto(
       parameters,
       seenParameters,
-      unwrap(program, property.type, messages, new Set<Type>()),
+      unwrap(program, property.type, new Set<Type>(), context),
     );
   }
   const returns: Model[] = [];
   collectInto(
     returns,
     new Set<Model>(),
-    unwrap(program, operation.returnType, messages, new Set<Type>()),
+    unwrap(program, operation.returnType, new Set<Type>(), context),
   );
   return { parameters, returns };
 }
@@ -120,8 +125,9 @@ export function operationSides(
   program: Program,
   operation: Operation,
   action: OperationAction,
+  context?: OperationModelContext,
 ): OperationSides {
-  const { parameters, returns } = operationSignatureModels(program, operation);
+  const { parameters, returns } = operationSignatureModels(program, operation, context);
   return action === "send"
     ? { request: parameters, reply: returns }
     : { request: returns, reply: parameters };
@@ -138,8 +144,12 @@ export function operationSides(
  *
  * @returns Every model the operation names, with repeats removed
  */
-function operationModels(program: Program, operation: Operation): Model[] {
-  const { parameters, returns } = operationSignatureModels(program, operation);
+function operationModels(
+  program: Program,
+  operation: Operation,
+  context?: OperationModelContext,
+): Model[] {
+  const { parameters, returns } = operationSignatureModels(program, operation, context);
   const found: Model[] = [];
   const seen = new Set<Model>();
   collectInto(found, seen, parameters);
@@ -176,13 +186,14 @@ function operationChannelModels(
   program: Program,
   operation: Operation,
   channel: ChannelTarget,
+  context?: OperationModelContext,
 ): Model[] {
   const action = getOperationAction(program, operation)?.action;
   const replyChannel = getReplyChannelInternal(program, operation)?.channel;
   if (action === undefined || replyChannel === undefined || replyChannel === channel) {
-    return operationModels(program, operation);
+    return operationModels(program, operation, context);
   }
-  return operationSides(program, operation, action).request;
+  return operationSides(program, operation, action, context).request;
 }
 
 /**
@@ -211,16 +222,20 @@ function operationChannelModels(
  *
  * @returns The models this channel carries, with repeats removed
  */
-export function channelMessageModels(program: Program, target: ChannelTarget): Model[] {
+export function channelMessageModels(
+  program: Program,
+  target: ChannelTarget,
+  context?: OperationModelContext,
+): Model[] {
   const found: Model[] = [];
   const seen = new Set<Model>();
-  for (const operation of channelOperations(program, target)) {
-    collectInto(found, seen, operationChannelModels(program, operation, target));
+  for (const operation of channelOperations(program, target, context?.operations)) {
+    collectInto(found, seen, operationChannelModels(program, operation, target, context));
   }
-  for (const operation of replyingOperations(program, target)) {
+  for (const operation of replyingOperations(program, target, context)) {
     const action = getOperationAction(program, operation)?.action;
     if (action === undefined) continue;
-    collectInto(found, seen, operationSides(program, operation, action).reply);
+    collectInto(found, seen, operationSides(program, operation, action, context).reply);
   }
   return found;
 }
@@ -236,11 +251,19 @@ export function channelMessageModels(program: Program, target: ChannelTarget): M
  * @param program - The program to read the state from
  * @param target - The type the decorator was applied to
  */
-function replyingOperations(program: Program, target: ChannelTarget): Operation[] {
+function replyingOperations(
+  program: Program,
+  target: ChannelTarget,
+  context?: OperationModelContext,
+): Operation[] {
   const compare = bySourcePosition(program);
-  return listOperationsReplyingOver(program, target).sort((a, b) =>
-    compare(sourcePositionOf(a), sourcePositionOf(b)),
-  );
+  const operations =
+    context?.operations === undefined
+      ? listOperationsReplyingOver(program, target)
+      : [...context.operations].filter(
+          (operation) => getReplyChannelInternal(program, operation)?.channel === target,
+        );
+  return operations.sort((a, b) => compare(sourcePositionOf(a), sourcePositionOf(b)));
 }
 
 /**
@@ -278,8 +301,12 @@ function collectInto(found: Model[], seen: Set<Model>, models: Model[]): void {
  * @param program - The program to read the state from
  * @param type - The type to inspect
  */
-export function unwrapModels(program: Program, type: Type): Model[] {
-  return unwrap(program, type, listMessages(program), new Set<Type>());
+export function unwrapModels(
+  program: Program,
+  type: Type,
+  context?: OperationModelContext,
+): Model[] {
+  return unwrap(program, type, new Set<Type>(), context);
 }
 
 /**
@@ -297,30 +324,29 @@ export function unwrapModels(program: Program, type: Type): Model[] {
  *
  * @param program - The program to report on
  * @param type - The type to inspect
- * @param messages - The messages this channel carries
  * @param visited - The types already visited
  */
 function unwrap(
   program: Program,
   type: Type,
-  messages: ReadonlyMap<Model, unknown>,
   visited: Set<Type>,
+  context?: OperationModelContext,
 ): Model[] {
   if (visited.has(type)) return [];
   visited.add(type);
   if (type.kind === "Union") {
     return [...type.variants.values()].flatMap((variant) =>
-      unwrap(program, variant.type, messages, visited),
+      unwrap(program, variant.type, visited, context),
     );
   }
   if (type.kind === "Model") {
-    if (messages.has(type)) return [type];
+    if (getMessageState(program, type) !== undefined) return [type];
     const element = collectionElement(type);
-    if (element !== undefined) return unwrap(program, element, messages, visited);
+    if (element !== undefined) return unwrap(program, element, visited, context);
     return [type];
   }
   if (type.kind === "Tuple") {
-    reportUnsupportedOperationMessageType(program, type);
+    reportUnsupportedOperationMessageType(program, type, context);
   }
   return [];
 }
@@ -328,14 +354,19 @@ function unwrap(
 /**
  * Reports a type that looks like a list of messages and is not one.
  *
- * The same type is walked from more than one caller in one program. The
- * state set keeps one report per type.
+ * The same type is walked from more than one caller. A document-local set
+ * keeps one report per type without hiding diagnostics of a later build.
  *
  * @param program - The program to report on
  * @param type - The unsupported type
  */
-function reportUnsupportedOperationMessageType(program: Program, type: Type): void {
-  const seen = program.stateSet(reportedUnsupportedMessageTypes);
+function reportUnsupportedOperationMessageType(
+  program: Program,
+  type: Type,
+  context?: OperationModelContext,
+): void {
+  const seen =
+    context?.reportedUnsupportedMessageTypes ?? program.stateSet(reportedUnsupportedMessageTypes);
   if (seen.has(type)) return;
   seen.add(type);
   reportDiagnostic(program, {

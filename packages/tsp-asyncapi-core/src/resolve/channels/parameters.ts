@@ -32,7 +32,7 @@ import { getParameterLocation } from "../../decorators/index.js";
 import { reportDiagnostic } from "../../lib.js";
 import { serializeExamples } from "../../example-serialization.js";
 import { present, text } from "../../optional-fields.js";
-import { unwrapModels } from "../operation-models.js";
+import { unwrapModels, type OperationModelContext } from "../operation-models.js";
 import { channelOperations } from "./scope.js";
 
 /**
@@ -69,6 +69,7 @@ export function resolveChannelParameters(
   record: ChannelRecord,
   channelId: string,
   messageModels: ReadonlySet<Model>,
+  modelContext?: OperationModelContext,
 ): readonly ChannelParameterNode[] {
   const address = record.state.address;
   // A dynamic channel carries no address, so neither direction of the match
@@ -80,7 +81,14 @@ export function resolveChannelParameters(
   // taken out here, so nothing below reports the same mistake twice.
   const names = [...new Set(parseAddressParameters(address))];
   const readFields = parameterFieldReader(program);
-  const declared = collectDeclarations(program, target, channelId, readFields, messageModels);
+  const declared = collectDeclarations(
+    program,
+    target,
+    channelId,
+    readFields,
+    messageModels,
+    modelContext,
+  );
 
   reportAddressMismatch(program, record, channelId, names, declared);
 
@@ -255,12 +263,13 @@ function collectDeclarations(
   channelId: string,
   readFields: ParameterFieldReader,
   messages: ReadonlySet<Model>,
+  modelContext?: OperationModelContext,
 ): Map<string, ModelProperty[]> {
   const declared = new Map<string, ModelProperty[]>();
 
-  for (const operation of channelOperations(program, target)) {
+  for (const operation of channelOperations(program, target, modelContext?.operations)) {
     for (const property of operation.parameters.properties.values()) {
-      const carriesMessage = unwrapModels(program, property.type).some((model) =>
+      const carriesMessage = unwrapModels(program, property.type, modelContext).some((model) =>
         messages.has(model),
       );
       if (carriesMessage) continue;

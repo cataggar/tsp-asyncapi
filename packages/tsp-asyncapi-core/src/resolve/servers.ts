@@ -10,7 +10,7 @@
  * lower half turns those into Server Objects and reads no state.
  */
 
-import { getNamespaceFullName, Namespace, Program } from "@typespec/compiler";
+import { getNamespaceFullName, Namespace, Program, Type } from "@typespec/compiler";
 import { getServers } from "../decorators/index.js";
 import {
   AsyncAPIServerVariableState,
@@ -193,8 +193,10 @@ export function resolveServers(
 export function reportServersOutsideService(
   program: Program,
   service: Namespace | undefined,
+  targets?: ReadonlySet<Type>,
 ): void {
   for (const { namespace, name, target } of listServersOutsideService(program, service)) {
+    if (targets !== undefined && !targets.has(namespace)) continue;
     reportDiagnostic(program, {
       code: "server-outside-service",
       format: { name, namespace: getNamespaceFullName(namespace) },
@@ -223,6 +225,7 @@ export function reportServersOutsideService(
 export function reportSecurityUsesWithoutServer(
   program: Program,
   service: Namespace | undefined,
+  targets?: ReadonlySet<Type>,
 ): void {
   const stray = listSecurityUsesWithoutServer(
     program,
@@ -230,6 +233,7 @@ export function reportSecurityUsesWithoutServer(
       service !== undefined && namespace === service && namespaceHasServers(program, namespace),
   );
   for (const { namespace, schemeName, target } of stray) {
+    if (targets !== undefined && !targets.has(namespace)) continue;
     reportDiagnostic(program, {
       code: "use-security-outside-server",
       format: { schemeName, namespace: getNamespaceFullName(namespace) },
