@@ -63,6 +63,26 @@ describe("Unit: toPlainValue — marshalled arguments as plain JSON", () => {
     expect(toPlainValue(program, { a: 1, b: { c: "d" } })).toStrictEqual({ a: 1, b: { c: "d" } });
   });
 
+  it("keeps __proto__ as an own property without changing the prototype", () => {
+    const value = { ["__proto__"]: { "cleanup.policy": "compact" } };
+    const converted = toPlainValue(program, value);
+    expect(converted).toStrictEqual(value);
+    if (!isPlainObject(converted)) throw new Error("Expected a converted object.");
+    expect(Object.getPrototypeOf(converted)).toBe(Object.prototype);
+    expect(Object.hasOwn(converted, "__proto__")).toBe(true);
+    expect(converted["cleanup.policy"]).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(converted))).toStrictEqual(value);
+  });
+
+  it.each([
+    { nested: { ["__proto__"]: { field: "value" } } },
+    { nested: [{ ["__proto__"]: { field: "value" } }] },
+  ])("preserves nested prototype-named data in %j", (value) => {
+    const converted = toPlainValue(program, value);
+    expect(converted).toStrictEqual(value);
+    expect(JSON.parse(JSON.stringify(converted))).toStrictEqual(value);
+  });
+
   /**
    * A field holding `undefined` is dropped rather than emitted as `null`.
    * The two mean different things in a document, and an absent field is what

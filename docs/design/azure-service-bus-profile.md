@@ -19,13 +19,15 @@ This RFC defines **contract requirements**, not SDK options or observed deployme
 | Layer                            | Pinned baseline / proposed support                                                                                                                                                  |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | AsyncAPI document                | Exactly `3.1.0`; not a floating `3.x` target [A1]                                                                                                                                   |
-| TypeSpec compiler                | `1.15.0`                                                                                                                                                                            |
+| TypeSpec compiler                | `1.16.0`                                                                                                                                                                            |
 | Core / emitter inspected         | `tsp-asyncapi-core` `0.4.2` / `tsp-asyncapi` `0.7.2`, repository `022e4bb` [R1]                                                                                                     |
-| Reproduction                     | Node **24**, pnpm **11.21.0**; compiler 1.15 requires Node >=22, so the older root README's Node >=20 recipe is not this recipe                                                     |
-| Planned versioning compatibility | `@typespec/versioning` `0.85.0` with compiler `1.15.0`; no versioned profile conformance claim until #1 integration below                                                           |
+| Reproduction                     | Node **24**, pnpm **11.21.0**; compiler and workspace require Node >=22                                                                                                             |
+| Planned versioning compatibility | `@typespec/versioning` `0.86.0` with compiler `1.16.0`; no versioned profile conformance claim until #1 integration below                                                           |
 | Extension profile                | Proposed `profileVersion: "0.1.0"`; schema dialect Draft-07                                                                                                                         |
 | Payload/header dialect           | AsyncAPI 3.1.0 native Schema Object (Draft-07-based); initial companion conformance covers native JSON only                                                                         |
 | Future companion/core releases   | Select and pin the **actual released versions containing the approved APIs** when available; core 0.4.2 has no public extension writer. No future package version is assigned here. |
+
+The original design review used compiler `1.15.0` and versioning `0.85.0`; the implementation baseline advances to the compatible `1.16.0`/`0.86.0` release pair to address the compiler dependency audit. The historical source revisions below remain unchanged.
 
 Application `info.version`, a message's schema version, TypeSpec/library versions, AsyncAPI version and `profileVersion` are independent. The schema `$id` is its intended documentation address, not a claim that this proposed version has been published.
 

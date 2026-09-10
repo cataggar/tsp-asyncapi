@@ -9,7 +9,7 @@ description: "安裝 tsp-asyncapi，用 TypeSpec 編譯出第一份 AsyncAPI 3.1
 
 ## 環境需求
 
-Node.js 20 以上。以下範例用 pnpm，npm 與 yarn 也可以。
+Node.js 22 以上，以及 TypeSpec compiler 1.16 以上的 1.x 版本。以下範例用 pnpm，npm 與 yarn 也可以。
 
 ## 安裝
 

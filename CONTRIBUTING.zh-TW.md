@@ -13,7 +13,7 @@ English version: [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ## 環境設定
 
-本專案需要 Node 20 以上與 pnpm。
+本專案需要 Node 22 以上與 pnpm。重現環境使用 Node 24 與 pnpm 11.21.0。
 
 ```bash
 pnpm install

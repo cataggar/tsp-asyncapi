@@ -35,7 +35,7 @@ An [AsyncAPI 3.1](https://www.asyncapi.com/) emitter for [TypeSpec](https://type
 
 ## Requirements
 
-- Node.js >= 20
+- Node.js >= 22
 - [pnpm](https://pnpm.io/) (this repo's `devEngines` field pins ^11)
 
 ## Installation

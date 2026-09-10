@@ -342,12 +342,7 @@ describe("Unit: server variables", () => {
     });
   });
 
-  it("never receives a variable named __proto__, because the compiler drops the key", async () => {
-    // A server name and a security scheme name are plain string arguments,
-    // so `__proto__` reaches this emitter and both maps keep it. A variable
-    // name is an object key instead, and the compiler marshals an object
-    // value with `result[key] = ...`. That writes the prototype, and the
-    // entry is gone before any decorator of this library runs.
+  it("preserves a variable named __proto__ through compiler marshalling and lowering", async () => {
     const runner = await AsyncAPITester.createInstance();
     const [{ Test }, diagnostics] = await runner.compileAndDiagnose(t.code`
       @service(#{ title: "Orders" })
@@ -359,16 +354,31 @@ describe("Unit: server variables", () => {
       namespace ${t.namespace("Test")} {}
     `);
 
-    // The template survives, and it has nothing to point at.
-    expectDiagnostics(diagnostics, [
-      {
-        code: "tsp-asyncapi/undeclared-server-variable",
-        severity: "warning",
-        message: /The template '\{__proto__\}' in this server has no matching entry/,
-      },
-    ]);
+    expectDiagnostics(diagnostics, []);
     const server = buildServersFrom(runner.program, Test)?.production;
-    expect(server).not.toHaveProperty("variables");
+    const variables = present(server?.variables, "server variables");
+    expect(Object.hasOwn(variables, "__proto__")).toBe(true);
+    expect(JSON.parse(JSON.stringify(variables))).toEqual({
+      ["__proto__"]: { default: "prod" },
+    });
+  });
+
+  it("preserves __proto__ variables through component promotion and serialization", async () => {
+    const doc = await emitDocument(`
+      @service(#{ title: "Orders" })
+      @server("production", #{
+        host: "{__proto__}.kafka.example.com",
+        protocol: "kafka",
+        variables: #{ \`__proto__\`: #{ default: "prod", \`enum\`: #["prod", "dev"] } }
+      })
+      namespace Test;
+    `);
+
+    const variables = present(serversOf(doc).production.variables, "server variables");
+    expect(Object.hasOwn(variables, "__proto__")).toBe(true);
+    expect(JSON.parse(JSON.stringify(resolveServerVariables(doc, variables)))).toEqual({
+      ["__proto__"]: { enum: ["prod", "dev"], default: "prod" },
+    });
   });
 
   it("reports a template that has no matching variable and keeps the server", async () => {

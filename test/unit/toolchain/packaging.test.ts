@@ -21,6 +21,8 @@ interface Manifest {
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  engines?: Record<string, string>;
 }
 
 describe("Unit: the package check", () => {
@@ -36,6 +38,26 @@ describe("Unit: the package check", () => {
 });
 
 describe("Unit: the declared dependencies", () => {
+  it.each(PACKAGES)("aligns %s with the supported compiler and Node baseline", async (name) => {
+    const manifest = await manifestOf(`packages/${name}/package.json`);
+    expect(manifest.peerDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
+    expect(manifest.devDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
+    expect(manifest.engines?.node).toBe(">=22.0.0");
+  });
+
+  it("pins compatible HTTP and protobuf tooling", async () => {
+    const root = await manifestOf("package.json");
+    expect(root.devDependencies?.["@typespec/compiler"]).toBe("^1.16.0");
+    expect(root.engines?.node).toBe(">=22.0.0");
+    for (const name of ["http", "openapi", "openapi3"]) {
+      expect(root.devDependencies?.[`@typespec/${name}`]).toBe("1.16.0");
+    }
+    expect(root.devDependencies?.["@typespec/protobuf"]).toBe("0.86.0");
+    const emitter = await manifestOf("packages/tsp-asyncapi/package.json");
+    expect(emitter.peerDependencies?.["@typespec/protobuf"]).toBe("0.86.x");
+    expect(emitter.devDependencies?.["@typespec/protobuf"]).toBe("0.86.0");
+  });
+
   /**
    * `yaml` carries its own type declarations. `@types/yaml` is a stub that
    * says so and nothing else, and DefinitelyTyped marks it deprecated. It

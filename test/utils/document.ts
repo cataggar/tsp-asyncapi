@@ -353,19 +353,19 @@ function resolveMap<T extends object>(
   prefix: string,
 ): Record<string, T> {
   const components = section ?? {};
-  const resolved: Record<string, T> = {};
+  const resolved: [string, T][] = [];
   for (const [name, value] of Object.entries(entries ?? {})) {
     if (!("$ref" in value)) {
-      resolved[name] = value;
+      resolved.push([name, value]);
       continue;
     }
     const key = value.$ref.replace(prefix, "");
     if (!Object.hasOwn(components, key)) {
       throw new Error(`The document references '${value.$ref}', and nothing is there.`);
     }
-    resolved[name] = components[key];
+    resolved.push([name, components[key]]);
   }
-  return resolved;
+  return Object.fromEntries(resolved);
 }
 
 /**
