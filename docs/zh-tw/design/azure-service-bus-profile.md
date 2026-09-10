@@ -15,16 +15,18 @@ description: "以封閉、具版本的 AsyncAPI 3.1.0 擴充描述 Service Bus �
 
 ## 範圍與版本
 
-| 層次                     | 基準與規劃                                                                                                 |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| AsyncAPI                 | 固定 **3.1.0**，不是浮動的 3.x                                                                             |
-| TypeSpec compiler        | **1.15.0**                                                                                                 |
-| 已檢視套件               | `tsp-asyncapi-core` **0.4.2**、`tsp-asyncapi` **0.7.2**；儲存庫 `022e4bb`                                  |
-| 重現環境                 | Node **24**、pnpm **11.21.0**。compiler 1.15 至少需要 Node 22，因此不能沿用舊版 README 的 Node >=20 說明。 |
-| 規劃中的 versioning      | `@typespec/versioning` **0.85.0** 搭配 compiler 1.15.0；尚未宣稱 versioned profile 相容                    |
-| Profile                  | 暫定 **0.1.0**；擴充 schema 使用 Draft-07                                                                  |
-| Payload 與 header        | 第一階段使用 AsyncAPI 原生、以 Draft-07 為基礎的 JSON schema                                               |
-| 未來 core/companion 套件 | 必須選用**確實包含核准 API 的已發行版本**。core 0.4.2 尚無公開的 extension writer，不在此虛構未來版本號。  |
+| 層次                     | 基準與規劃                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| AsyncAPI                 | 固定 **3.1.0**，不是浮動的 3.x                                                                            |
+| TypeSpec compiler        | **1.16.0**                                                                                                |
+| 已檢視套件               | `tsp-asyncapi-core` **0.4.2**、`tsp-asyncapi` **0.7.2**；儲存庫 `022e4bb`                                 |
+| 重現環境                 | Node **24**、pnpm **11.21.0**。compiler 與 workspace 至少需要 Node 22。                                   |
+| 規劃中的 versioning      | `@typespec/versioning` **0.86.0** 搭配 compiler 1.16.0；尚未宣稱 versioned profile 相容                   |
+| Profile                  | 暫定 **0.1.0**；擴充 schema 使用 Draft-07                                                                 |
+| Payload 與 header        | 第一階段使用 AsyncAPI 原生、以 Draft-07 為基礎的 JSON schema                                              |
+| 未來 core/companion 套件 | 必須選用**確實包含核准 API 的已發行版本**。core 0.4.2 尚無公開的 extension writer，不在此虛構未來版本號。 |
+
+原始設計審查使用 compiler `1.15.0` 與 versioning `0.85.0`；為修正 compiler 相依性稽核問題，實作基準更新為相容的 `1.16.0`/`0.86.0` 組合。下方的歷史來源 revision 保持不變。
 
 `info.version`、訊息 schema 版本、compiler/套件版本、AsyncAPI 版本與 profile 版本彼此獨立。第一階段採用各應用程式各自的未版本化進入點。
 

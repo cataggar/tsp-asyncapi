@@ -18,10 +18,10 @@ description: "帶有 tsp-avro decorator 的 model，可以用 Avro schema 當作
 先在本 emitter 旁邊安裝 Avro 套件。
 
 ```bash
-pnpm add "tsp-avro@0.3.x"
+pnpm add "tsp-avro@0.4.x"
 ```
 
-目前支援的版本是 `0.3.x`。`tsp-avro` 尚未進入 1.0，decorator 仍可能變動，支援範圍會隨它發佈更新。
+此 workspace 的下一次協調發行以 `0.4.x` 為目標，搭配 TypeSpec compiler `^1.16.0`。在該版本發佈前，請於儲存庫執行 `pnpm install --frozen-lockfile` 與 `pnpm build`，使用 workspace 套件，而不是上方的 registry 安裝指令。`tsp-avro` 尚未進入 1.0，decorator 仍可能變動，支援範圍會隨它發佈更新。
 
 再於 `tspconfig.yaml` 啟用 `avro` 預覽功能。
 

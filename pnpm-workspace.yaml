@@ -6,7 +6,18 @@ allowBuilds:
   "@scarf/scarf": false
   esbuild: true
 
+# Exact stable releases explicitly selected for the compiler security upgrade.
+minimumReleaseAgeExclude:
+  - "@typespec/asset-emitter@0.79.2"
+  - "@typespec/compiler@1.16.0"
+  - "@typespec/http@1.16.0"
+  - "@typespec/openapi3@1.16.0"
+  - "@typespec/openapi@1.16.0"
+  - "@typespec/protobuf@0.86.0"
+
 overrides:
+  # Compatible Ajv URI patch for GHSA-5jgf-p345-68v8 and related advisories.
+  fast-uri: "3.1.6"
   # DoS in qs.stringify, reached through @stryker-mutator/core. A patch
   # release inside the range its parent already asks for.
   qs: ">=6.15.2"

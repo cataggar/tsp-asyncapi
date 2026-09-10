@@ -159,7 +159,7 @@ export function resolveServerVariables(
     });
   }
 
-  const resolved: Record<string, AsyncAPIServerVariableState> = {};
+  const resolved: [string, AsyncAPIServerVariableState][] = [];
   for (const [name, variable] of declared) {
     if (!used.has(name)) {
       reportDiagnostic(context.program, {
@@ -181,10 +181,10 @@ export function resolveServerVariables(
         target: configTarget,
       });
     }
-    resolved[name] = normalized;
+    resolved.push([name, normalized]);
   }
 
-  return Object.keys(resolved).length > 0 ? resolved : undefined;
+  return resolved.length > 0 ? Object.fromEntries(resolved) : undefined;
 }
 
 /**

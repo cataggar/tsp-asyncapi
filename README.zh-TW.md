@@ -35,7 +35,7 @@
 
 ## 環境需求
 
-- Node.js >= 20
+- Node.js >= 22
 - [pnpm](https://pnpm.io/)（`devEngines` 欄位鎖定 ^11）
 
 ## 安裝

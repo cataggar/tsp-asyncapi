@@ -4,8 +4,8 @@ This is the HTTP validation prerequisite for issue #6, not the completed HTTP/Se
 example. It needs no Azure resources or credentials and introduces no Service Bus API.
 
 Use Node 24 and pnpm 11.21.0. TypeSpec compiler, HTTP, OpenAPI, and OpenAPI3 resolve to
-1.15.0 in the lockfile; the three new libraries are exact development dependencies.
-They require Node >=22, not the older Node >=20 floor of the published AsyncAPI packages.
+1.16.0 in the lockfile; the three HTTP/OpenAPI libraries are exact development dependencies.
+The workspace and its packages require Node >=22.
 
 From the repository root:
 
@@ -32,7 +32,7 @@ pnpm exec vitest run test/integration/openapi-validation.test.ts
   coercion, default insertion, and additional-property removal are disabled.
   Every document gets an independent reference registry.
 
-The options below were verified against `@typespec/openapi3` 1.15.0, rather than
+The options below are exercised against `@typespec/openapi3` 1.16.0, rather than
 inferred from another emitter. Both formats can be emitted in one compilation:
 
 ```yaml
