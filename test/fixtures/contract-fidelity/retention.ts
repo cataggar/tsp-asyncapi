@@ -7,7 +7,7 @@ import {
   type ThreeVersions,
 } from "../../utils/retained-messages.js";
 
-export interface RetainedWitness {
+interface RetainedWitness {
   readonly name: string;
   readonly producer: RetentionVersion;
   readonly message: JsonMessage;

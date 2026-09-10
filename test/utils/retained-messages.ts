@@ -10,7 +10,7 @@ export const retentionVersions = ["1.0", "2.0", "3.0"] as const;
 export type RetentionVersion = (typeof retentionVersions)[number];
 export type ThreeVersions<T> = readonly [T, T, T];
 
-export interface ObjectShape {
+interface ObjectShape {
   readonly properties: Readonly<Record<string, SchemaObject>>;
   readonly required: readonly string[];
 }
