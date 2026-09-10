@@ -41,23 +41,23 @@ describe("Unit: $onEmit", () => {
   });
 
   it.each([false, true])(
-    "runs document diagnostics before any write (noEmit=%s)",
+    "withholds every output when a later document has ambiguous security (noEmit=%s)",
     async (noEmit) => {
       const runner = await AsyncAPITester.createInstance();
       await runner.compile(
         `
+      @securityScheme("auth", #{ type: "plain" }) namespace Shared {}
+      @securityScheme("auth", #{ type: "userPassword" }) namespace OtherShared {}
       @service namespace A {}
-      @service namespace B {
-        @message("same") model First { id: string; }
-        @message("same") model Second { id: string; }
-      }
+      @service @useSecurity("auth")
+      @server("broker", #{ host: "b.example", protocol: "kafka" }) namespace B {}
     `,
         { compilerOptions: { noEmit } },
       );
       const writeFile = vi.spyOn(runner.program.host, "writeFile").mockResolvedValue(undefined);
       await $onEmit(emitContextFor(runner.program, {}));
       expect(runner.program.diagnostics.map(({ code }) => code)).toContain(
-        "tsp-asyncapi/duplicate-message-key",
+        "tsp-asyncapi/ambiguous-security-scheme",
       );
       expect(writeFile).not.toHaveBeenCalled();
     },

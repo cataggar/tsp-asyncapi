@@ -66,7 +66,7 @@ Owned `@message` models are retained even when unused. A messaging signature may
 
 With one original service, otherwise unowned declarations keep their legacy implicit ownership. With no services, the legacy global fallback document remains. With multiple original services, unowned channels and actions are ambiguous, even if `service` selects just one app. Move application declarations beneath their owner. Unowned inherited/template operation signatures that are realized on an owned channel are reusable carriers, not additional application roots.
 
-The emitter resolves all selected documents before writing any of them. Selection, ownership, output collisions, and fatal document/provider errors withhold the whole output set. `noEmit` suppresses writes, not diagnostics. Source validation still applies to the entire TypeSpec program; selecting a service does not hide source errors in another service.
+The emitter resolves all selected documents before writing any of them. New selection/ownership errors, output collisions, ambiguous visible security definitions, and provider refusals withhold the whole output set. Existing resolve/lower diagnostic-and-drop behavior remains unchanged. `noEmit` suppresses writes, not diagnostics. Source validation still applies to the entire TypeSpec program; selecting a service does not hide source errors in another service.
 
 ## Preview features
 

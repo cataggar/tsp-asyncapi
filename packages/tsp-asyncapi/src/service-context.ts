@@ -16,6 +16,7 @@ import {
   getOperationAction,
   getReplyChannel,
   getUsedSecuritySchemes,
+  listChannels,
   listMessages,
   reportDiagnostic,
 } from "tsp-asyncapi-core";
@@ -70,7 +71,7 @@ function sourceCarriers(program: Program, operations: readonly Operation[]) {
 /** Validate original application roots once, even when a selector excludes some services. @internal */
 export function validateServiceOwnership(program: Program, services: readonly Service[]): void {
   if (services.length < 2) return;
-  const declarations = discoverDocumentDeclarations(program.getGlobalNamespaceType());
+  const declarations = originalDeclarations(program);
   const carried = sourceCarriers(program, declarations.operations);
   for (const channel of declarations.channels) {
     if (serviceOwner(program, channel) !== undefined || getChannel(program, channel) === undefined)
@@ -97,15 +98,36 @@ export function validateServiceOwnership(program: Program, services: readonly Se
   }
 }
 
-function sourceModels(program: Program, declarations: DocumentDeclarations): ReadonlySet<Model> {
+function originalDeclarations(program: Program): DocumentDeclarations {
+  const declarations = discoverDocumentDeclarations(program.getGlobalNamespaceType());
   const models = new Set(declarations.models);
-  // Preserve otherwise unused original template instantiations, which the
-  // compiler stores in state but not in namespace.models. Never use this for a realm.
+  const channels = new Set(declarations.channels);
+  const operations = new Set(declarations.operations);
+  const diagnosticTargets = new Set(declarations.diagnosticTargets);
+  // Aliases erase otherwise unused template instantiations from namespace maps.
+  // Supplement only the original graph; realm discovery must never use state lists.
   const namespaces = new Set(declarations.namespaces);
   for (const model of listMessages(program).keys()) {
     if (model.namespace === undefined || namespaces.has(model.namespace)) models.add(model);
   }
-  return models;
+  for (const channel of listChannels(program).keys()) {
+    const namespace = channel.kind === "Namespace" ? channel : channel.namespace;
+    if (namespace !== undefined && !namespaces.has(namespace)) continue;
+    channels.add(channel);
+    diagnosticTargets.add(channel);
+    for (const operation of channel.operations.values()) {
+      if (!operation.isFinished) continue;
+      operations.add(operation);
+      diagnosticTargets.add(operation);
+    }
+  }
+  return {
+    ...declarations,
+    models: [...models],
+    channels: [...channels],
+    operations: [...operations],
+    diagnosticTargets,
+  };
 }
 
 type Owns = (type: Type) => boolean;
@@ -226,13 +248,15 @@ export function createServiceDocumentContext(
   if (originalService === undefined) return createDocumentContext(program, undefined, effective);
   const root = effective?.root ?? originalService.type;
   const service = effective === undefined ? originalService : effective.service;
-  const all = effective?.declarations ?? discoverDocumentDeclarations(globalRoot(root));
+  const all =
+    effective === undefined
+      ? originalDeclarations(program)
+      : (effective.declarations ?? discoverDocumentDeclarations(globalRoot(root)));
   const owns: Owns = (type) => {
     const owner = serviceOwner(program, type);
     return owner === root || (owner === undefined && originalServices.length === 1);
   };
-  const candidates = effective === undefined ? sourceModels(program, all) : all.models;
-  const models = new Set([...candidates].filter(owns));
+  const models = new Set(all.models.filter(owns));
   const channels = all.channels.filter(owns);
   const operations = all.operations.filter(owns);
   const diagnosticTargets = new Set([...all.diagnosticTargets].filter(owns));

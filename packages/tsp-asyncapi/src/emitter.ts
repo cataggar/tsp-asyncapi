@@ -22,6 +22,9 @@ import yaml from "yaml";
 export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
   const options = context.options;
   const program = context.program;
+  const diagnosticStart = program.diagnostics.length;
+  const hasPlanningError = () =>
+    program.diagnostics.slice(diagnosticStart).some(({ severity }) => severity === "error");
 
   const providers = shippedProviders();
 
@@ -54,7 +57,7 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
     options,
     availableFeatures(providers),
   );
-  if (unavailable || program.hasError()) return;
+  if (unavailable || hasPlanningError()) return;
   const contexts = (services.length === 0 ? [undefined] : selected).map((service) =>
     createServiceDocumentContext(program, service, services),
   );
@@ -71,7 +74,7 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
     })),
     options["output-file"],
   );
-  if (outputs === undefined || program.hasError()) return;
+  if (outputs === undefined || hasPlanningError()) return;
   const pending: { path: string; content: string }[] = [];
   let refused = false;
   for (const output of outputs) {
@@ -90,6 +93,10 @@ export async function $onEmit(context: EmitContext<AsyncAPIEmitterOptions>) {
     });
   }
   // Resolve/lower every selected document before the first write, including noEmit.
-  if (refused || program.hasError() || program.compilerOptions.noEmit) return;
+  // Existing diagnostic-and-drop recovery remains intact; shared security ambiguity is a new refusal.
+  const ambiguousSecurity = program.diagnostics
+    .slice(diagnosticStart)
+    .some(({ code }) => code === "tsp-asyncapi/ambiguous-security-scheme");
+  if (refused || ambiguousSecurity || program.compilerOptions.noEmit) return;
   for (const output of pending) await emitFile(program, output);
 }

@@ -189,6 +189,7 @@ describe("Integration: isolated service documents", () => {
     '@channel("outside") interface Outside {}',
     "@dynamicChannel interface Outside {}",
     "@send op outside(): void;",
+    '@channel("outside") interface Outside<T> { @send op publish(value: T): void; } alias Instance = Outside<string>;',
   ])(
     "refuses ambiguous unowned applications even with a service selector: %s",
     async (declaration) => {
@@ -310,6 +311,29 @@ describe("Integration: isolated service documents", () => {
     );
     expectDiagnosticEmpty(diagnostics);
     expect(Object.keys(outputs)).toEqual(["asyncapi.A%2FB.yaml", "asyncapi.Other.yaml"]);
+  });
+
+  it("retains owned template channel instances erased by aliases", async () => {
+    const { documents, diagnostics } = await emitDocumentsWithDiagnostics(`
+      @service namespace A {
+        @message model Event { alpha: string; }
+        @channel("events") interface Channel<T> { @send op publish(event: T): void; }
+        alias Endpoint = Channel<Event>;
+      }
+      @service namespace B {
+        @message model Event { beta: string; }
+        @channel("events") interface Channel<T> { @send op publish(event: T): void; }
+        alias Endpoint = Channel<Event>;
+      }
+    `);
+    expectDiagnosticEmpty(diagnostics);
+    for (const doc of Object.values(documents)) {
+      expect(Object.keys(doc.channels ?? {})).toEqual(["events"]);
+      expect(Object.keys(doc.channels?.events.messages ?? {})).toEqual(["Event"]);
+      expect(Object.keys(doc.operations ?? {})).toHaveLength(1);
+    }
+    expect(JSON.stringify(documents["asyncapi.A.yaml"])).not.toContain("beta");
+    expect(JSON.stringify(documents["asyncapi.B.yaml"])).not.toContain("alpha");
   });
 
   it("refuses an exact selector that cannot distinguish dotted namespace identities", async () => {

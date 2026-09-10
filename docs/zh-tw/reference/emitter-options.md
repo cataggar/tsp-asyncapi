@@ -64,9 +64,9 @@ tsp compile . --emit tsp-asyncapi \
 
 Service 自有的 `@message` 即使未使用也會保留。Messaging signature 可明確引用沒有 service 歸屬的共用 `@message`；有多個 service 時，未引用的無歸屬 message 不會輸出。Payload 與 header 可共用一般 domain model，即使 model 宣告在另一個 service 裡，也不會因此匯入該 service 的應用程式 metadata。引用其他 service 的 `@message` envelope 或 reply channel 則是錯誤；請改用本地 envelope 包裝共用資料。
 
-原始程式只有一個 service 時，無歸屬宣告保留舊有的隱含歸屬。沒有 service 時，仍產生舊有的全域後備文件。原始程式有多個 service 時，無歸屬的 channel 與 action 都有歧義，即使 `service` 只選一個也一樣；請把它們放到所屬 service 底下。由自有 channel 實例化的無歸屬繼承／template operation signature 是共用來源，不算額外的應用程式根節點。
+原始程式只有一個 service 時，無歸屬宣告保留舊有的隱含歸屬。沒有 service 時，仍產生舊有的全域後備文件。原始程式有多個 service 時，無歸屬的 channel 與 action 都有歧義，即使 `service` 只選一個也一樣；請把它們放到所屬 service 底下。在自有 channel 上具體套用的無歸屬繼承／template operation signature 是共用來源，不算額外的應用程式根節點。
 
-emitter 會先解析所有選定文件，再開始寫檔。選取、歸屬、輸出碰撞與致命文件／provider 錯誤會阻止整組輸出。`noEmit` 只停用寫檔，不停用診斷。原始碼驗證仍涵蓋整份 TypeSpec 程式；選取 service 不會隱藏其他 service 的原始碼錯誤。
+emitter 會先解析所有選定文件，再開始寫檔。新增的選取／歸屬錯誤、輸出碰撞、可見 security 定義歧義與 provider 拒絕，都會阻止整組輸出。既有 resolve/lower 層回報診斷後捨棄問題項目的行為不變。`noEmit` 只停用寫檔，不停用診斷。原始碼驗證仍涵蓋整份 TypeSpec 程式；選取 service 不會隱藏其他 service 的原始碼錯誤。
 
 ## 預覽功能
 

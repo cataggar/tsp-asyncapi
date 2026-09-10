@@ -18,7 +18,7 @@ outline: 2
 
 ### `unowned-application-declaration`
 
-原始程式有多個 service，但某個 channel 或 action 沒有 service 歸屬。請把它放到所屬 `@service` 底下。只選取一個 service 不會解除歧義。在自有 channel 上實例化的繼承／template signature 不算獨立應用程式根節點。
+原始程式有多個 service，但某個 channel 或 action 沒有 service 歸屬。請把它放到所屬 `@service` 底下。只選取一個 service 不會解除歧義。在自有 channel 上具體套用的繼承／template signature 不算獨立應用程式根節點。
 
 ### `cross-service-reference`
 
